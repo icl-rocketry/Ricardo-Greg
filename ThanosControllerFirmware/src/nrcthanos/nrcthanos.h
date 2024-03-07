@@ -30,15 +30,12 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
             _networkmanager(networkmanager),      
             _fuelServoGPIO(fuelServoGPIO),
             _fuelServoChannel(fuelServoChannel),
-            _oxServoGPIO(oxServoGPIO),
-            _oxServoChannel(oxServoChannel),
+            _regServoGPIO(regServoGPIO),
+            _regServoChannel(regServoChannel),
             _overrideGPIO(overrideGPIO),
-            _tvcpin0(tvc0),
-            _tvcpin1(tvc1),
-            _tvcpin2(tvc2),
             _address(address),
             fuelServo(fuelServoGPIO,fuelServoChannel,networkmanager,0,0,180,0,175),
-            oxServo(oxServoGPIO,oxServoChannel,networkmanager,0,0,180,10,160),
+            regServo(regServoGPIO,regServoChannel, networkmanager,0,0,180,10,140),
             _Buck(Buck)
             {};
 
@@ -49,26 +46,23 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         bool getPollingStatus() { return _polling; };
 
         uint16_t getFuelAngle() { return fuelServo.getAngle(); };
-        uint16_t getOxAngle() { return oxServo.getAngle(); };
+        uint16_t getRegAngle() { return regServo.getAngle(); };
         uint8_t getStatus(){return static_cast<uint8_t>(currentEngineState);};
 
     protected:
         RnpNetworkManager &_networkmanager;
         const uint8_t _fuelServoGPIO;
         const uint8_t _fuelServoChannel;
-        const uint8_t _oxServoGPIO;
-        const uint8_t _oxServoChannel;
+        const uint8_t _regServoGPIO;
+        const uint8_t _regServoChannel;
         const uint8_t _overrideGPIO;
 
-        const uint8_t _tvcpin0;
-        const uint8_t _tvcpin1;
-        const uint8_t _tvcpin2;
         const uint8_t _address;
 
 
 
         NRCRemoteServo fuelServo;
-        NRCRemoteServo oxServo;
+        NRCRemoteServo regServo;
 
         SiC43x& _Buck;
 
@@ -112,7 +106,10 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
 
         uint64_t ignitionTime;
 
-        float _chamberP;
+        //Also include value for _lptankP, taken directly from GPIO pin
+        //float _chamberP; //Chamber pressure value (replace with _hptankP)
+        float _hptankP;
+        float _lptankP;
         float _thrust;
 
         bool timeFrameCheck(int64_t start_time, int64_t end_time = -1);
@@ -123,8 +120,6 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
 
         void gotoThrust(float target, float closespeed, float openspeed);
         void firePyro(uint32_t duration);
-        void openOxFill();
-        void closeOxFill();
 
         void resetVars(){
             m_fuelServoPrevUpdate = 0;
@@ -136,12 +131,10 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
 
         // Ignition sequence timings from moment ignition command received
         const uint64_t pyroFires = 0;
-        // const uint64_t fuelValvePreposition = 500;
-        // const uint64_t oxValvePreposition = 550;
         const uint64_t endOfIgnitionSeq = 500;
 
         const uint16_t fuelServoPreAngle = 105;
-        const uint16_t oxServoPreAngle = 70;
+        const uint16_t regServoPreAngle = 70;
 
         uint64_t lastTimeThrustUpdate;
         uint64_t lastTimeChamberPUpdate;
@@ -173,21 +166,26 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         const uint8_t m_oxFillService = 10;
         const uint8_t m_oxFillNode = 103;
 
-        float m_nominal = 2400;
-        float m_targetThrottled = 850;
+        //-----------------------------------------------------------------------------------
+        //---- Controller Parameters --------------------------------------------------------
+        //-----------------------------------------------------------------------------------
 
-        float m_fuelServoCurrAngle = 0;
-        float m_oxServoCurrAngle = 0;
+        //PID Controller constants
+        const float K_p = 1.5; //Proportional controller gain
+        const float K_i = 3; //Integral controller gain
+        const float I_lim = 20 //Limit for integral component to prevent integral windup
 
-        float m_fuelServoPrevAngle = 0;
-        float m_oxServoPrevAngle = 0;
+        //Feed forward calculation constants
+        const float FF_Precede = 0.2; //Amount of time the e-reg opening precedes the fuel valve opening
+        const float K_1 = 372.1; //Constant that converts Q * pressure ratio across valve into the required Kv for the valve
+        const float C_1 = 20; //Equivalent to min. open angle of e-reg
+        const float C_2 = 171000; //Constant used to convert Kv to valve angle using linear function
+        const float Q_water = 1; //Expect volumetric flow rate of water in L/s. Not necessarily constant
 
-        uint32_t m_fuelServoPrevUpdate = 0;
-        uint32_t m_oxServoPrevUpdate = 0;
+        //Variables used by controller
+        uint32_t t_prev; //Used to save the time from the previous iteration (in milliseconds)
+        float I_error = 0; //Used to save the current integral value to be added to or subtracted from
 
-        const float m_servoFast = 75; // degs per second
-        const float m_firstNominalSpeed = 120; // degs per second
-        const float m_servoSlow = 20;  // degs per second
 
         uint32_t m_calibrationStart = 0;
 
@@ -206,39 +204,4 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
 
         float m_fuelExtra = -0.1;
 
-         void motorsOff(){
-            digitalWrite(_tvcpin0,LOW);
-            digitalWrite(_tvcpin1,LOW);
-            digitalWrite(_tvcpin2,LOW);
-        };
-
-        void motorsCalibrate(){
-            digitalWrite(_tvcpin0,HIGH);
-            digitalWrite(_tvcpin1,LOW);
-            digitalWrite(_tvcpin2,LOW);
-        };
-
-        void motorsLocked(){
-            digitalWrite(_tvcpin0,LOW);
-            digitalWrite(_tvcpin1,HIGH);
-            digitalWrite(_tvcpin2,LOW);
-        };
-
-        // void motorsCircle(){
-        //     digitalWrite(_tvcpin0,HIGH);
-        //     digitalWrite(_tvcpin1,HIGH);
-        //     digitalWrite(_tvcpin2,LOW);
-        // };
-
-        // void motorsDebug(){
-        //     digitalWrite(_tvcpin0,LOW);
-        //     digitalWrite(_tvcpin1,LOW);
-        //     digitalWrite(_tvcpin2,HIGH);
-        // };
-
-        void motorsArmed(){
-            digitalWrite(_tvcpin0,LOW);
-            digitalWrite(_tvcpin1,HIGH);
-            digitalWrite(_tvcpin2,HIGH);
-        };
 };

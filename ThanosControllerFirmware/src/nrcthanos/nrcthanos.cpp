@@ -7,21 +7,23 @@
 
 #include "Config/services_config.h"
 
+// Setup for the E-Reg Controller
 void NRCThanos::setup()
 {
     fuelServo.setup();
-    oxServo.setup();
+    regServo.setup();
+    //oxServo.setup();
 
     fuelServo.setAngleLims(0, 175);
-    oxServo.setAngleLims(0, 160);
+    regServo.setAngleLims(0,140);
+    //oxServo.setAngleLims(0, 160);
 
-    m_oxThrottleRange = 160 - oxServoPreAngle;
-    m_fuelThrottleRange = 175 - fuelServoPreAngle;
+    //m_oxThrottleRange = 160 - oxServoPreAngle;
+    //m_fuelThrottleRange = 175 - fuelServoPreAngle;
 
-    pinMode(_overrideGPIO, INPUT_PULLUP);
-    pinMode(_tvcpin0, OUTPUT);
-    pinMode(_tvcpin1, OUTPUT);
-    pinMode(_tvcpin2, OUTPUT);
+    pinMode(_overrideGPIO, INPUT_PULLUP); //May still keep manual override, not sure
+    pinMode(_pTank, INPUT_PULLUP); //Figure out how this GPIO pin is defined and where
+
 }
 
 void NRCThanos::update()
@@ -30,12 +32,11 @@ void NRCThanos::update()
     if (this->_state.flagSet(COMPONENT_STATUS_FLAGS::DISARMED))
     {
         currentEngineState = EngineState::Default;
-        motorsOff();
         
         // _Buck.restart(5); // abuse restart command to prevent servos from getting too hot when in disarmed state
     }
 
-    // Close valves if abort is used
+    // Close valves if abort is used - CHECK IF KEEPING ABORT OR NOT
     if (digitalRead(_overrideGPIO) == 1)
     {
         currentEngineState = EngineState::ShutDown;
@@ -48,14 +49,10 @@ void NRCThanos::update()
         _ignitionCalls = 0;
     }
 
-     if ((millis() - ignitionTime > m_oxFillCloseTime) && _ignitionCalls > 0)
-    {
-        closeOxFill();
-    }
-
     switch (currentEngineState)
     {
 
+    // Default (turn on) state
     case EngineState::Default:
     {
         fuelServo.goto_Angle(0);
@@ -70,84 +67,39 @@ void NRCThanos::update()
         break;
     }
 
-    case EngineState::Ignition:
+    // Tank pressurisation state
+    case EngineState::Filling:
 
-    { // ignition sequence
-        // RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Ignition state");
-        if (timeFrameCheck(pyroFires, endOfIgnitionSeq))
-        {
-            firePyro(500);
-        }
+    {   
 
-        else if (timeFrameCheck(endOfIgnitionSeq))
-        {
-            currentEngineState = EngineState::NominalT;
-            openOxFill();
-            m_nominalEntry = millis();
-            m_firstNominal = true;
-            resetVars();
-        }
+        // Open reg valve to filling angle. Hold open until _lptankP reaches P_SET and then close
 
         break;
     }
 
-    case EngineState::Calibration:
-    {
-        motorsCalibrate();
-        if (millis() - m_calibrationStart > m_calibrationTime)
-        {
-            currentEngineState = EngineState::Default;   
-            m_calibrationDone = true;         
-        }
-
-        break;
-    }
-
-    case EngineState::ThrottledT:
+    // Closed loop control (nominal) state
+    case EngineState::Controlled:
     {
 
-        if ((millis() - m_throttledEntry > m_throttledDownTime))
+        if ((millis() - m_startTime > m_endTime))
         {
             currentEngineState = EngineState::NominalT;
             resetVars();
             break;
         }
 
-        if (!nominalEngineOp())
+        if (!nominalRegOp())
         {
-            gotoWithSpeed(fuelServo, 180, m_servoSlow, m_fuelServoPrevAngle, m_fuelServoCurrAngle, m_fuelServoPrevUpdate);
-            gotoWithSpeed(oxServo, 180, m_servoSlow, m_oxServoPrevAngle, m_oxServoCurrAngle, m_oxServoPrevUpdate);
-            break;
+            //go to shutdown
         }
 
-        if (_thrust < 400)
-        {
-
-            oxServo.goto_Angle(90);
-
-            m_oxPercent = (float)(90 - oxServoPreAngle) / (float)(m_oxThrottleRange);
-            
-            m_fuelPercent = m_oxPercent + m_fuelExtra;
-            float fuelAngle = (float)(m_fuelPercent * m_fuelThrottleRange) + fuelServoPreAngle;
-
-            if (fuelAngle < fuelServoPreAngle)
-            {
-                fuelServo.goto_AngleHighRes(fuelServoPreAngle);
-            }
-            else
-            {
-                fuelServo.goto_AngleHighRes(fuelAngle);
-            }
-
-            break;
-        }
-
-        gotoThrust(m_targetThrottled, m_servoFast, 0);
+        
 
         break;
     }
 
-    case EngineState::NominalT:
+    // Open loop control state (opnly to be used for certain tests)
+    case EngineState::Openloop:
     {
 
         if ((millis() - m_nominalEntry > m_firstNominalTime) && m_firstNominal)
@@ -169,13 +121,12 @@ void NRCThanos::update()
         break;
     }
 
+    // System shutdown state (close both valves)
     case EngineState::ShutDown:
     {
+        regServo.goto_Angle(0);
         fuelServo.goto_Angle(0);
-        oxServo.goto_Angle(0);
         _polling = false;
-
-        motorsOff();
 
         break;
     }
@@ -187,9 +138,9 @@ void NRCThanos::update()
     }
 }
 
-bool NRCThanos::nominalEngineOp()
+bool NRCThanos::nominalRegOp()
 {
-    if (_chamberP > 3 || _chamberP < 1)
+    if (_lptankP > 10 && _lptankP < 50)
     {
         return true;
     }
@@ -286,7 +237,7 @@ void NRCThanos::extendedCommandHandler_impl(const NRCPacket::NRC_COMMAND_ID comm
     {
         if (currentEngineState == EngineState::Debug)
         {
-            oxServo.goto_Angle(command_packet.arg);
+            regServo.goto_Angle(command_packet.arg);
         }
         else
         {
@@ -319,6 +270,7 @@ bool NRCThanos::timeFrameCheck(int64_t start_time, int64_t end_time)
     }
 }
 
+/*
 void NRCThanos::gotoWithSpeed(NRCRemoteServo &Servo, uint16_t demandAngle, float speed, float &prevAngle, float &currAngle, uint32_t &prevUpdateT)
 {
     if (millis() - prevUpdateT < 10)
@@ -355,6 +307,7 @@ void NRCThanos::gotoWithSpeed(NRCRemoteServo &Servo, uint16_t demandAngle, float
 
     prevUpdateT = millis();
 }
+
 
 void NRCThanos::gotoThrust(float target, float closespeed, float openspeed)
 {
@@ -393,6 +346,48 @@ void NRCThanos::gotoThrust(float target, float closespeed, float openspeed)
         fuelServo.goto_AngleHighRes(fuelAngle);
     }
 }
+*/
+
+// Function to apply the closed loop PI controller with feed forward. FIGURE OUT HOW PRESSURES ARE MEASURED AND WHICH FUNCTION TO DO THAT IN
+void NRCThanos::closedLoop(float P_SET, float P_LP_TANK, float P_HP_TANK)
+{
+    error = P_SET - P_LP_TANK //Calculate error in tank pressure
+    dt = (millis() - t_prev)/1000 //Calculate the time since the last
+    t_prev = millis()
+    I_error = I_error + error*dt //Increment the integral counter
+    I_term = K_i*I_error
+
+    //Set upper and lower bounds to the integral term to prevent windup
+    if (I_term > I_lim)
+    {
+        I_term = I_lim
+    }
+    else if (I_term < -I_lim)
+    {
+        I_term = -I_lim
+    }
+    reg_angle = K_p*error + I_term + feedforward(P_HP_TANK, P_SET)
+
+    //Set upper and lower bounds for the regualtor valve angle (figure out where these values should be defined from calibration)
+    if (reg_angle > 140)
+    {
+        reg_angle = 140
+    }
+    else if (reg_angle < 20)
+    {
+        reg_angle = 20
+    }
+
+    return reg_angle
+
+}
+
+void NRCThanos::feedforward(float P_HP_TANK, float P_SET)
+{
+    FF_angle = C_2*((Q_water*(P_SET/P_HP_TANK))/K_1) + C_1
+    return FF_angle
+}
+
 
 void NRCThanos::firePyro(uint32_t duration)
 {
@@ -425,35 +420,3 @@ bool NRCThanos::pValUpdated()
     }
 }
 
-void NRCThanos::openOxFill()
-{
-    SimpleCommandPacket openOxFillCmd(2, 180);
-    openOxFillCmd.header.source_service = static_cast<uint8_t>(Services::ID::Thanos);
-    openOxFillCmd.header.destination_service = m_oxFillService;
-    openOxFillCmd.header.source = _address;
-    openOxFillCmd.header.destination = m_oxFillNode;
-    openOxFillCmd.header.uid = 0;
-    _networkmanager.sendPacket(openOxFillCmd);
-    oxFillClosed = false;
-}
-
-void NRCThanos::closeOxFill()
-{
-    if (!oxFillClosed){
-        SimpleCommandPacket closeOxFillCmd(2, 0);
-        closeOxFillCmd.header.source_service = static_cast<uint8_t>(Services::ID::Thanos);
-        closeOxFillCmd.header.destination_service = m_oxFillService;
-        closeOxFillCmd.header.source = _address;
-        closeOxFillCmd.header.destination = m_oxFillNode;
-        closeOxFillCmd.header.uid = 0;
-        _networkmanager.sendPacket(closeOxFillCmd);
-
-        if (closeOxFillCalls >= 2){     // this is clapped i know
-            oxFillClosed = true;
-            closeOxFillCalls = 0;
-        }
-        else{
-            closeOxFillCalls++;
-        }
-    }
-}
