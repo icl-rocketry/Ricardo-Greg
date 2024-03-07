@@ -12,17 +12,15 @@ void NRCThanos::setup()
 {
     fuelServo.setup();
     regServo.setup();
-    //oxServo.setup();
 
     fuelServo.setAngleLims(0, 175);
     regServo.setAngleLims(0,140);
-    //oxServo.setAngleLims(0, 160);
 
     //m_oxThrottleRange = 160 - oxServoPreAngle;
     //m_fuelThrottleRange = 175 - fuelServoPreAngle;
 
     pinMode(_overrideGPIO, INPUT_PULLUP); //May still keep manual override, not sure
-    pinMode(_pTank, INPUT_PULLUP); //Figure out how this GPIO pin is defined and where
+    pinMode(_pTankGPIO, INPUT_PULLUP); //Figure out how this GPIO pin is defined and where
 
 }
 
@@ -42,8 +40,8 @@ void NRCThanos::update()
         currentEngineState = EngineState::ShutDown;
     }
 
-    // Close valves after a flat 14 seconds
-    if ((millis() - ignitionTime > m_cutoffTime) && _ignitionCalls > 0)
+    // Close valves after test duration
+    if ((millis() - ignitionTime > m_testDuration) && _ignitionCalls > 0)
     {
         currentEngineState = EngineState::ShutDown;
         _ignitionCalls = 0;
@@ -56,7 +54,7 @@ void NRCThanos::update()
     case EngineState::Default:
     {
         fuelServo.goto_Angle(0);
-        oxServo.goto_Angle(0);
+        regServo.goto_Angle(regClosedAngle);
         _polling = false;
 
         if (this->_state.flagSet(COMPONENT_STATUS_FLAGS::NOMINAL) && m_calibrationDone)
@@ -73,6 +71,16 @@ void NRCThanos::update()
     {   
 
         // Open reg valve to filling angle. Hold open until _lptankP reaches P_SET and then close
+        regServo.goto_Angle(regTankFillAngle);
+
+        if (get_lptank >= P_set)
+        {
+            regServo.goto_Angle(regClosedAngle);
+            currentEngineState = EngineState::Default
+            resetVars();
+            break;
+        }
+
 
         break;
     }
@@ -81,19 +89,26 @@ void NRCThanos::update()
     case EngineState::Controlled:
     {
 
-        if ((millis() - m_startTime > m_endTime))
+        //Open Fuel Valve tot start the test
+        fuelServo.goto_Angle(fuelServoOpenAngle);
+
+        //Start closed loop control of regulator valve
+        regServo.goto_Angle(closedLoopAngle());
+
+        if ((millis() - m_startTime > m_testDuration)) //figure out where m_startTime is recorded
         {
-            currentEngineState = EngineState::NominalT;
+            currentEngineState = EngineState::ShutDown;
             resetVars();
             break;
         }
 
         if (!nominalRegOp())
         {
-            //go to shutdown
+            currentEngineState = EngineState::ShutDown
+            resetVars();
+            break;
         }
 
-        
 
         break;
     }
@@ -102,20 +117,25 @@ void NRCThanos::update()
     case EngineState::Openloop:
     {
 
-        if ((millis() - m_nominalEntry > m_firstNominalTime) && m_firstNominal)
+        //Open Fuel Valve tot start the test
+        fuelServo.goto_Angle(fuelServoOpenAngle);
+
+        //Start open loop control of regulator valve (move to set position)
+        regServo.goto_Angle(regServoOpenAngle);
+
+
+        if ((millis() - m_startTime > m_testDuration))
         {
-            currentEngineState = EngineState::ThrottledT;
+            currentEngineState = EngineState::ShutDown;
             resetVars();
-            m_throttledEntry = millis();
-            m_firstNominal = false;
             break;
         }
 
-        if (m_firstNominal){
-            gotoThrust(m_nominal, 0, m_firstNominalSpeed);
-        }
-        else{
-            gotoThrust(2380, 0, m_servoFast);
+        if (!nominalRegOp())
+        {
+            currentEngineState = EngineState::ShutDown
+            resetVars();
+            break;
         }
 
         break;
@@ -138,30 +158,41 @@ void NRCThanos::update()
     }
 }
 
+// Function to check if the reg system is running nominally or if an abort should be triggered
 bool NRCThanos::nominalRegOp()
 {
-    if (_lptankP > 10 && _lptankP < 50)
+    if (get_lptankP() > 10 && get_lptankP() < 50)
     {
         return true;
     }
     else
     {
-        return false;
+        return false; //Trigger an abort
     }
 }
 
+//Not sure what this is doing, something with the network
 void NRCThanos::updateChamberP(float chamberP)
 {
     lastTimeChamberPUpdate = millis();
     _chamberP = chamberP;
 }
 
+//Not sure what this is doing, something with the network
 void NRCThanos::updateThrust(float thrust)
 {
     lastTimeThrustUpdate = millis();
     _thrust = abs(thrust);
 }
 
+// Get the pressure reading from the GPIO pin and convert to [barA] (Absolute pressure)
+void NRCThanos::get_lptankP()
+{
+    float P = (analogRead(_ptankGPIO) - P_offset)/P_gradient
+    return P
+}
+
+// Function to perform state machine transitions (add a way to get to filling state)
 void NRCThanos::execute_impl(packetptr_t packetptr)
 {
     SimpleCommandPacket execute_command(*packetptr);
@@ -174,7 +205,7 @@ void NRCThanos::execute_impl(packetptr_t packetptr)
         {
             break;
         }
-        currentEngineState = EngineState::Ignition;
+        currentEngineState = EngineState::Controlled; //Change 'Controlled' to 'Openloop' if doing an open loop test
         ignitionTime = millis();
         _ignitionCalls = 0;
         resetVars();
@@ -216,6 +247,7 @@ void NRCThanos::execute_impl(packetptr_t packetptr)
     }
 }
 
+// Not sure what this is for, debugging and stuff?
 void NRCThanos::extendedCommandHandler_impl(const NRCPacket::NRC_COMMAND_ID commandID, packetptr_t packetptr)
 {
     SimpleCommandPacket command_packet(*packetptr);
@@ -252,6 +284,7 @@ void NRCThanos::extendedCommandHandler_impl(const NRCPacket::NRC_COMMAND_ID comm
     }
 }
 
+// Not sure what this is for
 bool NRCThanos::timeFrameCheck(int64_t start_time, int64_t end_time)
 {
     if (millis() - ignitionTime > start_time && end_time == -1)
@@ -349,46 +382,49 @@ void NRCThanos::gotoThrust(float target, float closespeed, float openspeed)
 */
 
 // Function to apply the closed loop PI controller with feed forward. FIGURE OUT HOW PRESSURES ARE MEASURED AND WHICH FUNCTION TO DO THAT IN
-void NRCThanos::closedLoop(float P_SET, float P_LP_TANK, float P_HP_TANK)
+void NRCThanos::closedLoopAngle(float P_HP_TANK)
 {
-    error = P_SET - P_LP_TANK //Calculate error in tank pressure
-    dt = (millis() - t_prev)/1000 //Calculate the time since the last
-    t_prev = millis()
-    I_error = I_error + error*dt //Increment the integral counter
-    I_term = K_i*I_error
+    error = P_set - get_lptank(); //Calculate error in tank pressure
+    dt = (millis() - t_prev)/1000; //Calculate the time since the last
+    t_prev = millis();
+    I_error = I_error + error*dt; //Increment the integral counter
+    I_term = K_i*I_error;
 
     //Set upper and lower bounds to the integral term to prevent windup
     if (I_term > I_lim)
     {
-        I_term = I_lim
+        I_term = I_lim;
     }
     else if (I_term < -I_lim)
     {
-        I_term = -I_lim
+        I_term = -I_lim;
     }
-    reg_angle = K_p*error + I_term + feedforward(P_HP_TANK, P_SET)
+    reg_angle = int(K_p*error + I_term + feedforward(P_HP_TANK));
 
     //Set upper and lower bounds for the regualtor valve angle (figure out where these values should be defined from calibration)
-    if (reg_angle > 140)
+    if (reg_angle > regMaxOpenAngle)
     {
-        reg_angle = 140
+        reg_angle = regMaxOpenAngle;
     }
-    else if (reg_angle < 20)
+    else if (reg_angle < regMinOpenAngle)
     {
-        reg_angle = 20
+        reg_angle = regMinOpenAngle;
     }
 
-    return reg_angle
+    //somehow record the current reg valve angle on the backend?
+
+    return reg_angle;
 
 }
 
-void NRCThanos::feedforward(float P_HP_TANK, float P_SET)
+//Function to calculate the feedforward angle based on upstream pressure, set pressure and expected flowrate
+void NRCThanos::feedforward(float P_HP_TANK)
 {
-    FF_angle = C_2*((Q_water*(P_SET/P_HP_TANK))/K_1) + C_1
-    return FF_angle
+    FF_angle = C_2*((Q_water*(P_set/P_HP_TANK))/K_1) + C_1;
+    return FF_angle;
 }
 
-
+//Don't need this
 void NRCThanos::firePyro(uint32_t duration)
 {
     if (millis() - _prevFiring > _ignitionCommandSendDelta)
@@ -408,6 +444,7 @@ void NRCThanos::firePyro(uint32_t duration)
     }
 }
 
+// Not sure what this is for, some network thing
 bool NRCThanos::pValUpdated()
 {
     if ((millis() - lastTimeChamberPUpdate) > pressureUpdateTimeLim || (millis() - lastTimeThrustUpdate) > pressureUpdateTimeLim)

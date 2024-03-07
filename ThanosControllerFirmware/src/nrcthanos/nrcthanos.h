@@ -129,6 +129,7 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
             m_thrustreached = false;
         };
 
+        /*
         // Ignition sequence timings from moment ignition command received
         const uint64_t pyroFires = 0;
         const uint64_t endOfIgnitionSeq = 500;
@@ -149,6 +150,8 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         const uint32_t m_oxFillCloseTime = 13000;
         const uint32_t m_edgingDelay = 100;
 
+        */
+
         uint8_t _ignitionCalls = 0;
         const uint8_t _ignitionCommandMaxCalls = 2;
         const uint8_t _ignitionCommandSendDelta = 50;
@@ -167,41 +170,47 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         const uint8_t m_oxFillNode = 103;
 
         //-----------------------------------------------------------------------------------
+        //---- Component Calibration Constants ----------------------------------------------
+        //-----------------------------------------------------------------------------------
+
+        //GPIO Pressure transducer calibration constants
+        const uint32_t P_gradient = 57299;
+        const uint32_t P_offset = 723340;
+        
+        //Regulator valve calibration angles
+        const uint16_t regClosedAngle = 0;
+        const uint16_t regMinOpenAngle = 20;
+        const uint16_t regMaxOpenAngle = 140;
+        const uint16_t regTankFillAngle = 35;
+
+        //-----------------------------------------------------------------------------------
+        //---- Test Parameters --------------------------------------------------------------
+        //-----------------------------------------------------------------------------------
+        // Reserved for things that will change between experiments
+
+        const uint32_t m_testDuration = 4000; //time the valves are opened for in ms
+        const uint16_t fuelServoOpenAngle = 150; //angle to move the fuel servo valve to during test
+        const uint16_t regServoOpenAngle = 40; //angle to open the reg valve to in the case of open loop control
+        const float P_set = 30; //LP tank set pressure
+        const float Q_water = 1; //Expect volumetric flow rate of water in L/s. Not necessarily constant
+
+        //-----------------------------------------------------------------------------------
         //---- Controller Parameters --------------------------------------------------------
         //-----------------------------------------------------------------------------------
 
         //PID Controller constants
         const float K_p = 1.5; //Proportional controller gain
         const float K_i = 3; //Integral controller gain
-        const float I_lim = 20 //Limit for integral component to prevent integral windup
+        const uint16_t I_lim = 20 //Limit for integral component to prevent integral windup
 
         //Feed forward calculation constants
-        const float FF_Precede = 0.2; //Amount of time the e-reg opening precedes the fuel valve opening
-        const float K_1 = 372.1; //Constant that converts Q * pressure ratio across valve into the required Kv for the valve
-        const float C_1 = 20; //Equivalent to min. open angle of e-reg
-        const float C_2 = 171000; //Constant used to convert Kv to valve angle using linear function
-        const float Q_water = 1; //Expect volumetric flow rate of water in L/s. Not necessarily constant
+        const uint32_t FF_Precede = 200; //Amount of time the e-reg opening precedes the fuel valve opening in ms
+        const uint32_t K_1 = 372; //Constant that converts Q * pressure ratio across valve into the required Kv for the valve
+        const uint16_t C_1 = 20; //Equivalent to min. open angle of e-reg
+        const uint32_t C_2 = 171000; //Constant used to convert Kv to valve angle using linear function
 
         //Variables used by controller
-        uint32_t t_prev; //Used to save the time from the previous iteration (in milliseconds)
+        uint64_t t_prev; //Used to save the time from the previous iteration (in milliseconds)
         float I_error = 0; //Used to save the current integral value to be added to or subtracted from
-
-
-        uint32_t m_calibrationStart = 0;
-
-        //
-        bool m_thrustreached = false;
-        uint32_t m_throttledEntry;
-        uint32_t m_nominalEntry;
-        bool m_firstNominal = false;
-        bool m_calibrationDone = false;
-
-        //
-        float m_oxPercent = 0;
-        float m_fuelPercent = 0;
-        uint16_t m_oxThrottleRange = 0;
-        uint16_t m_fuelThrottleRange = 0;
-
-        float m_fuelExtra = -0.1;
 
 };
