@@ -45,11 +45,15 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         void updateHPtankP(float HPtankP);
         bool getPollingStatus() { return _polling; };
 
+        float get_lptankP();
+        uint16_t closedLoopAngle();
+        uint16_t feedforward();
+
         uint16_t getFuelAngle() { return fuelServo.getAngle(); };
         uint16_t getRegAngle() { return regServo.getAngle(); };
         uint8_t getStatus(){return static_cast<uint8_t>(currentEngineState);};
 
-    protected:
+    protected: //WHAT DOES PUBLIC VS PROTECTED MEAN??
 
         RnpNetworkManager &_networkmanager;
         const uint8_t _fuelServoGPIO;
@@ -68,11 +72,6 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         friend class NRCRemoteActuatorBase;
         friend class NRCRemoteBase;
 
-        void execute_impl(packetptr_t packetptr);
-        // void arm_impl(packetptr_t packetptr);
-        // void disarm_impl(packetptr_t packetptr);
-        void override_impl(packetptr_t packetptr);
-        void extendedCommandHandler_impl(const NRCPacket::NRC_COMMAND_ID commandID, packetptr_t packetptr);
 
         // enum class EngineState : uint8_t
         // {
@@ -84,8 +83,6 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         //     // Fullbore = 4,
         //     Debug = 5
         // };
-
-
 
         //void gotoWithSpeed(NRCRemoteServo &Servo, uint16_t demandAngle, float speed, float &prevAngle, float &currAngle, uint32_t &prevUpdateT);
         //void gotoThrust(float target, float closespeed, float openspeed);
@@ -147,7 +144,7 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         //---- Function Definitions ---------------------------------------------------------
         //-----------------------------------------------------------------------------------
 
-        bool timeFrameCheck(int64_t start_time, int64_t end_time = -1);
+        //bool timeFrameCheck(int64_t start_time, int64_t end_time = -1);
         bool nominalEngineOp();
         bool pValUpdated();
 
@@ -156,6 +153,11 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
             m_fuelServoPrevUpdate = 0;
             m_fuelServoPrevAngle = fuelServo.getValue();
         };
+
+        //Functions related to perfoming the state transitions
+        void execute_impl(packetptr_t packetptr);
+        void override_impl(packetptr_t packetptr);
+        void extendedCommandHandler_impl(const NRCPacket::NRC_COMMAND_ID commandID, packetptr_t packetptr);
 
         //-----------------------------------------------------------------------------------
         //---- Various Variable Definitions -------------------------------------------------
@@ -210,6 +212,10 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         //-----------------------------------------------------------------------------------
         //---- Controller Parameters --------------------------------------------------------
         //-----------------------------------------------------------------------------------
+        
+        //Abort Parameters
+        const float highAbortP = 50; //Upper pressure redline [bar] to cause abort
+        const float lowAbortP = 10; //Lower pressure redline [bar] to cause abort (to detect sensor disconnect)
 
         //PID Controller constants
         const float K_p = 1.5; //Proportional controller gain
