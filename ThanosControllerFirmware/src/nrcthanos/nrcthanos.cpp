@@ -95,7 +95,7 @@ void NRCThanos::update()
         //Start closed loop control of regulator valve
         regServo.goto_Angle(closedLoopAngle());
 
-        if ((millis() - m_startTime > m_testDuration)) //figure out where m_startTime is recorded
+        if ((millis() - startTime > testDuration)) //figure out where m_startTime is recorded
         {
             currentEngineState = EngineState::ShutDown;
             resetVars();
@@ -124,7 +124,7 @@ void NRCThanos::update()
         regServo.goto_Angle(regServoOpenAngle);
 
 
-        if ((millis() - m_startTime > m_testDuration))
+        if ((millis() - startTime > testDuration))
         {
             currentEngineState = EngineState::ShutDown;
             resetVars();
@@ -185,8 +185,14 @@ void NRCThanos::updateThrust(float thrust)
     _thrust = abs(thrust);
 }
 
+void NRCThanos::updateHPtankP(float thrust)
+{
+    lastTimeHPtankPUpdate = millis();
+    _HPtankP = HPtankP;
+}
+
 // Get the pressure reading from the GPIO pin and convert to [barA] (Absolute pressure)
-void NRCThanos::get_lptankP()
+float NRCThanos::get_lptankP()
 {
     float P = (analogRead(_ptankGPIO) - P_offset)/P_gradient
     return P
@@ -206,7 +212,7 @@ void NRCThanos::execute_impl(packetptr_t packetptr)
             break;
         }
         currentEngineState = EngineState::Controlled; //Change 'Controlled' to 'Openloop' if doing an open loop test
-        ignitionTime = millis();
+        startTime = millis();
         _ignitionCalls = 0;
         resetVars();
         _polling = true;
@@ -379,10 +385,30 @@ void NRCThanos::gotoThrust(float target, float closespeed, float openspeed)
         fuelServo.goto_AngleHighRes(fuelAngle);
     }
 }
+
+void NRCThanos::firePyro(uint32_t duration)
+{
+    if (millis() - _prevFiring > _ignitionCommandSendDelta)
+    {
+        if (_ignitionCalls < _ignitionCommandMaxCalls)
+        {
+            SimpleCommandPacket ignition_command(2, duration);
+            ignition_command.header.source_service = static_cast<uint8_t>(Services::ID::Thanos);
+            ignition_command.header.destination_service = m_ingitionService;
+            ignition_command.header.source = _address;
+            ignition_command.header.destination = m_ignitionNode;
+            ignition_command.header.uid = 0;
+            _networkmanager.sendPacket(ignition_command);
+            _prevFiring = millis();
+            _ignitionCalls++;
+        }
+    }
+}
+
 */
 
 // Function to apply the closed loop PI controller with feed forward. FIGURE OUT HOW PRESSURES ARE MEASURED AND WHICH FUNCTION TO DO THAT IN
-void NRCThanos::closedLoopAngle()
+uint16_t NRCThanos::closedLoopAngle()
 {
     float P_HP_TANK = 200; //Replace with actual measurement of the upstream tank pressure
 
@@ -420,30 +446,10 @@ void NRCThanos::closedLoopAngle()
 }
 
 //Function to calculate the feedforward angle based on upstream pressure, set pressure and expected flowrate
-void NRCThanos::feedforward(float P_HP_TANK)
+uint16_t NRCThanos::feedforward(float P_HP_TANK)
 {
     FF_angle = C_2*((Q_water*(P_set/P_HP_TANK))/K_1) + C_1;
     return FF_angle;
-}
-
-//Don't need this
-void NRCThanos::firePyro(uint32_t duration)
-{
-    if (millis() - _prevFiring > _ignitionCommandSendDelta)
-    {
-        if (_ignitionCalls < _ignitionCommandMaxCalls)
-        {
-            SimpleCommandPacket ignition_command(2, duration);
-            ignition_command.header.source_service = static_cast<uint8_t>(Services::ID::Thanos);
-            ignition_command.header.destination_service = m_ingitionService;
-            ignition_command.header.source = _address;
-            ignition_command.header.destination = m_ignitionNode;
-            ignition_command.header.uid = 0;
-            _networkmanager.sendPacket(ignition_command);
-            _prevFiring = millis();
-            _ignitionCalls++;
-        }
-    }
 }
 
 // Not sure what this is for, some network thing
