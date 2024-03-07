@@ -20,9 +20,7 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
                     uint8_t oxServoGPIO,
                     uint8_t oxServoChannel,
                     uint8_t overrideGPIO,
-                    uint8_t tvc0,
-                    uint8_t tvc1,
-                    uint8_t tvc2,
+                    uint8_t pTankGPIO,
                     uint8_t address,
                     SiC43x& Buck
                     ):
@@ -33,6 +31,7 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
             _regServoGPIO(regServoGPIO),
             _regServoChannel(regServoChannel),
             _overrideGPIO(overrideGPIO),
+            _pTankGPIO(pTankGPIO),
             _address(address),
             fuelServo(fuelServoGPIO,fuelServoChannel,networkmanager,0,0,180,0,175),
             regServo(regServoGPIO,regServoChannel, networkmanager,0,0,180,10,140),
@@ -43,6 +42,7 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         void update();
         void updateThrust(float thrust);
         void updateChamberP(float chamberP);
+        void updateHPtankP(float HPtankP);
         bool getPollingStatus() { return _polling; };
 
         uint16_t getFuelAngle() { return fuelServo.getAngle(); };
@@ -56,6 +56,7 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         const uint8_t _regServoGPIO;
         const uint8_t _regServoChannel;
         const uint8_t _overrideGPIO;
+        const uint8_t _pTankGPIO;
 
         const uint8_t _address;
 
@@ -163,7 +164,7 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         uint8_t closeOxFillCalls = 0;
 
         //
-        uint8_t m_ingitionService = 12;
+        uint8_t m_ingitionService = 12; //will correcting this spelling break something?
         uint8_t m_ignitionNode = 107;
 
         const uint8_t m_oxFillService = 10;

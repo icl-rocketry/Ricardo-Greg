@@ -18,6 +18,7 @@
 
 #include <librrc/rocketcomponent.h>
 
+//I'm guessing this is where most things in the overall system are connected together using existing definitions from other header files
 System::System():
 RicCoreSystem(Commands::command_map,Commands::defaultEnabledCommands,Serial),
 Buck(PinMap::BuckPGOOD, PinMap::BuckEN, 1, 1, PinMap::BuckOutputV, 1500, 470),
@@ -30,6 +31,8 @@ HPtankPTap(3, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::HPta
 chamberPTapPoller(50, &chamberPTap),
 thrustGaugePoller(20, &thrustGauge),
 HPtankPTapPoller(50, &HPtankPTap), //Check this is correct, what does the number mean?
+
+//This is used in nrcthanos.h to define the pinouts using pinmap_config.h
 Thanos(networkmanager,PinMap::ServoPWM1,0,PinMap::ServoPWM2,1,PinMap::EngineOverride,PinMap::LPTankP,networkmanager.getAddress(),Buck)
 {};
 

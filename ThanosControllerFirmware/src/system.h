@@ -32,8 +32,10 @@ class System : public RicCoreSystem<System,SYSTEM_FLAG,Commands::ID>
 
         NetworkSensor chamberPTap;
         NetworkSensor thrustGauge;
+        NetworkSensor HPtankPTap;
         SensorPoller chamberPTapPoller;
         SensorPoller thrustGaugePoller;
+        SensorPoller HPtankPTapPoller;
 
         NRCThanos Thanos;
 
