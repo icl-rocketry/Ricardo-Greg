@@ -123,10 +123,10 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
 
         void resetVars(){
             m_fuelServoPrevUpdate = 0;
-            m_oxServoPrevUpdate = 0;
+            //m_oxServoPrevUpdate = 0;
             m_fuelServoPrevAngle = fuelServo.getValue();
-            m_oxServoPrevAngle = oxServo.getValue();
-            m_thrustreached = false;
+            //m_oxServoPrevAngle = oxServo.getValue();
+            //m_thrustreached = false;
         };
 
         /*

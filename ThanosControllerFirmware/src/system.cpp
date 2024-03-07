@@ -24,9 +24,13 @@ Buck(PinMap::BuckPGOOD, PinMap::BuckEN, 1, 1, PinMap::BuckOutputV, 1500, 470),
 canbus(systemstatus,PinMap::TxCan,PinMap::RxCan,3),
 chamberPTap(1, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::chamberPTap), static_cast<uint8_t>(Services::ID::chamberPTap), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
 thrustGauge(2, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::thrustGauge), static_cast<uint8_t>(Services::ID::thrustGauge), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
+//**** CHECK THIS IS ANYWHERE CLOSE TO CORRECT ****
+HPtankPTap(3, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::HPtankPTap), static_cast<uint8_t>(Services::ID::HPtankPTap), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
+//*************************************************
 chamberPTapPoller(50, &chamberPTap),
 thrustGaugePoller(20, &thrustGauge),
-Thanos(networkmanager,PinMap::ServoPWM1,0,PinMap::ServoPWM2,1,PinMap::EngineOverride,PinMap::TVCPIN0,PinMap::TVCPIN1,PinMap::TVCPIN2,networkmanager.getAddress(),Buck)
+HPtankPTapPoller(50, &HPtankPTap), //Check this is correct, what does the number mean?
+Thanos(networkmanager,PinMap::ServoPWM1,0,PinMap::ServoPWM2,1,PinMap::EngineOverride,PinMap::LPTankP,networkmanager.getAddress(),Buck)
 {};
 
 
@@ -46,6 +50,7 @@ void System::systemSetup(){
     Buck.setup();
     chamberPTapPoller.setup();
     thrustGaugePoller.setup();
+    HPtankPTapPoller.setup(); //CHECK THIS IS CORRECT
     Thanos.setup();
     canbus.setup();
     networkmanager.addInterface(&canbus);
@@ -57,10 +62,12 @@ void System::systemSetup(){
     uint8_t thanosservice = static_cast<uint8_t>(Services::ID::Thanos);
     uint8_t chamberPTapservice = static_cast<uint8_t>(Services::ID::chamberPTap);
     uint8_t thrustGaugeservice = static_cast<uint8_t>(Services::ID::thrustGauge);
+    uint8_t HPtankPTapservice = static_cast<uint8_t>(Services::ID::HPtankPTap);
 
     networkmanager.registerService(thanosservice,Thanos.getThisNetworkCallback());
     networkmanager.registerService(chamberPTapservice,[this](packetptr_t packetptr){chamberPTap.networkCallback(std::move(packetptr));});
     networkmanager.registerService(thrustGaugeservice,[this](packetptr_t packetptr){thrustGauge.networkCallback(std::move(packetptr));});
+    networkmanager.registerService(HPtankPTapservice,[this](packetptr_t packetptr){HPtankPTap.networkCallback(std::move(packetptr));});
 };
 
 void System::systemUpdate(){
@@ -69,6 +76,7 @@ void System::systemUpdate(){
     if(Thanos.getPollingStatus()){  
         chamberPTapPoller.update();
         thrustGaugePoller.update();
+        HPtankPTapPoller.update(); //CHECK THIS IS CORRECT
     }
     
     if(chamberPTapPoller.newdata)
@@ -79,6 +87,11 @@ void System::systemUpdate(){
     if(thrustGaugePoller.newdata)
     {
         Thanos.updateThrust(thrustGaugePoller.getVal());
+    }
+
+    if(HPTankPTapPoller.newdata)
+    {
+        Thanos.updateHPtankP(HPtankPTapPoller.getVal()); //Where is updateHPtankP defined??
     }
 
     Thanos.update();

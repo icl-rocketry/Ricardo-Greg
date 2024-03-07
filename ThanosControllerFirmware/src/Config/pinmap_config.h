@@ -19,10 +19,11 @@ namespace PinMap{
     static constexpr uint8_t BuckOutputV = 4;
 
     static constexpr uint8_t EngineOverride = 8;
+    static constexpr uint8_t LPTankP = 9; //Find out what pin the PT is on
 
-    static constexpr uint8_t TVCPIN0 = 7; //odrive 6
-    static constexpr uint8_t TVCPIN1 = 6; //odrive 7
-    static constexpr uint8_t TVCPIN2 = 9; //odrive 8 
+    //static constexpr uint8_t TVCPIN0 = 7; //odrive 6
+    //static constexpr uint8_t TVCPIN1 = 6; //odrive 7
+    //static constexpr uint8_t TVCPIN2 = 9; //odrive 8 
 
 };
 

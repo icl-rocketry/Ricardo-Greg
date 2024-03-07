@@ -113,7 +113,7 @@ void NRCThanos::update()
         break;
     }
 
-    // Open loop control state (opnly to be used for certain tests)
+    // Open loop control state (only to be used for certain tests)
     case EngineState::Openloop:
     {
 
@@ -382,8 +382,10 @@ void NRCThanos::gotoThrust(float target, float closespeed, float openspeed)
 */
 
 // Function to apply the closed loop PI controller with feed forward. FIGURE OUT HOW PRESSURES ARE MEASURED AND WHICH FUNCTION TO DO THAT IN
-void NRCThanos::closedLoopAngle(float P_HP_TANK)
+void NRCThanos::closedLoopAngle()
 {
+    float P_HP_TANK = 200; //Replace with actual measurement of the upstream tank pressure
+
     error = P_set - get_lptank(); //Calculate error in tank pressure
     dt = (millis() - t_prev)/1000; //Calculate the time since the last
     t_prev = millis();
