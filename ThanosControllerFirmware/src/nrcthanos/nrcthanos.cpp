@@ -36,9 +36,10 @@ void NRCThanos::update()
     }
 
     // Close valves after test duration
-    if (millis() - ignitionTime > m_testDuration)
+    if ((millis() - startTime > testDuration) && _ignitionCalls > 0)
     {
         currentEngineState = EngineState::ShutDown;
+        _ignitionCalls = 0; //Flag used to ensure that system can exit the shutdown state
     }
 
     switch (currentEngineState)
@@ -63,7 +64,7 @@ void NRCThanos::update()
 
     {   
 
-        // Open reg valve to filling angle. Hold open until _lptankP reaches P_SET and then close
+        // Open reg valve to filling angle. Hold open until _lptankP reaches P_set and then close
         regServo.goto_Angle(regTankFillAngle);
 
         if (get_lptank >= P_set)
@@ -102,19 +103,19 @@ void NRCThanos::update()
     case EngineState::Openloop:
     {
 
-        //Open Fuel Valve tot start the test
-        fuelServo.goto_Angle(fuelServoOpenAngle);
-
-        //Start open loop control of regulator valve (move to set position)
-        regServo.goto_Angle(regServoOpenAngle);
-
-
+        //
         if (((millis() - startTime > testDuration)) || !nominalRegOp())
         {
             currentEngineState = EngineState::ShutDown;
             resetVars();
             break;
         }
+
+        //Open Fuel Valve tot start the test
+        fuelServo.goto_Angle(fuelServoOpenAngle);
+
+        //Start open loop control of regulator valve (move to set position)
+        regServo.goto_Angle(regServoOpenAngle);
 
         break;
     }
@@ -136,7 +137,7 @@ void NRCThanos::update()
     }
 }
 
-// Function to perform state machine transitions (add a way to get to filling state)
+// Function to perform state machine transitions for the main operational system states
 void NRCThanos::execute_impl(packetptr_t packetptr)
 {
     SimpleCommandPacket execute_command(*packetptr);
@@ -151,6 +152,7 @@ void NRCThanos::execute_impl(packetptr_t packetptr)
         }
         currentEngineState = EngineState::Controlled; //Change 'Controlled' to 'Openloop' if doing an open loop test
         startTime = millis();
+        _ignitionCalls = 0;
         resetVars();
         _polling = true;
         RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Test Start");
@@ -159,6 +161,7 @@ void NRCThanos::execute_impl(packetptr_t packetptr)
     case 2:
     {
         currentEngineState = EngineState::ShutDown;
+        _ignitionCalls = 0;
         _polling = false;
         RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("ShutDown");
         break;
@@ -188,7 +191,7 @@ void NRCThanos::execute_impl(packetptr_t packetptr)
     }
 }
 
-// Not sure what this is for, debugging and stuff?
+// Extra states for use during system debugging
 void NRCThanos::extendedCommandHandler_impl(const NRCPacket::NRC_COMMAND_ID commandID, packetptr_t packetptr)
 {
     SimpleCommandPacket command_packet(*packetptr);
@@ -228,7 +231,8 @@ void NRCThanos::extendedCommandHandler_impl(const NRCPacket::NRC_COMMAND_ID comm
 // Function to apply the closed loop PI controller with feed forward. FIGURE OUT HOW PRESSURES ARE MEASURED AND WHICH FUNCTION TO DO THAT IN
 uint16_t NRCThanos::closedLoopAngle()
 {
-    float P_HP_TANK = 200; //Replace with actual measurement of the upstream tank pressure
+    float P_HP_TANK = _HPtankP; //Replace with actual measurement of the upstream tank pressure
+    // float P_HP_TANK = 200;
 
     error = P_set - get_lptank(); //Calculate error in tank pressure
     dt = (millis() - t_prev)/1000; //Calculate the time since the last
@@ -245,7 +249,7 @@ uint16_t NRCThanos::closedLoopAngle()
     {
         I_term = -I_lim;
     }
-    reg_angle = int(K_p*error + I_term + feedforward(P_HP_TANK));
+    reg_angle = (int) (K_p*error + I_term + feedforward(P_HP_TANK));
 
     //Set upper and lower bounds for the regualtor valve angle (figure out where these values should be defined from calibration)
     if (reg_angle > regMaxOpenAngle)
@@ -309,6 +313,8 @@ float NRCThanos::get_lptankP()
     return P
 }
 
+/*
+
 // Not sure what this is for, some network thing
 bool NRCThanos::pValUpdated()
 {
@@ -322,8 +328,6 @@ bool NRCThanos::pValUpdated()
     }
 }
 
-
-/*
 // Not sure this is needed
 bool NRCThanos::timeFrameCheck(int64_t start_time, int64_t end_time)
 {

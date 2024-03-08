@@ -129,7 +129,7 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         //---- State Machine Setup ----------------------------------------------------------
         //-----------------------------------------------------------------------------------
 
-        //Why is there bit shifting??
+        //Define the codes for each engine state (use bit shifting to make it obvious when 2 are triggered at once)
         enum class EngineState : uint8_t
         {
             Default = 1<<0,
@@ -206,8 +206,8 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         const uint32_t testDuration = 4000; //time the valves are opened for in ms
         const uint16_t fuelServoOpenAngle = 150; //angle to move the fuel servo valve to during test
         const uint16_t regServoOpenAngle = 40; //angle to open the reg valve to in the case of open loop control
-        const float P_set = 30; //LP tank set pressure
-        const float Q_water = 1; //Expect volumetric flow rate of water in L/s. Not necessarily constant
+        const float P_set = 30; //LP tank set pressure [bar]
+        const float Q_water = 1; //Expect volumetric flow rate of water [L/s]. Not necessarily constant
 
         //-----------------------------------------------------------------------------------
         //---- Controller Parameters --------------------------------------------------------

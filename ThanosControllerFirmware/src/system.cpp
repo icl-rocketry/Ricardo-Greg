@@ -30,7 +30,7 @@ HPtankPTap(3, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::HPta
 //*************************************************
 chamberPTapPoller(50, &chamberPTap),
 thrustGaugePoller(20, &thrustGauge),
-HPtankPTapPoller(50, &HPtankPTap), //Check this is correct, what does the number mean?
+HPtankPTapPoller(50, &HPtankPTap), //Numbers refer to the sample time in ms
 
 //This is used in nrcthanos.h to define the pinouts using pinmap_config.h
 Thanos(networkmanager,PinMap::ServoPWM1,0,PinMap::ServoPWM2,1,PinMap::EngineOverride,PinMap::LPTankP,networkmanager.getAddress(),Buck)
@@ -79,7 +79,7 @@ void System::systemUpdate(){
     if(Thanos.getPollingStatus()){  
         chamberPTapPoller.update();
         thrustGaugePoller.update();
-        HPtankPTapPoller.update(); //CHECK THIS IS CORRECT
+        HPtankPTapPoller.update();
     }
     
     if(chamberPTapPoller.newdata)
@@ -94,7 +94,7 @@ void System::systemUpdate(){
 
     if(HPTankPTapPoller.newdata)
     {
-        Thanos.updateHPtankP(HPtankPTapPoller.getVal()); //Where is updateHPtankP defined??
+        Thanos.updateHPtankP(HPtankPTapPoller.getVal());
     }
 
     Thanos.update();
