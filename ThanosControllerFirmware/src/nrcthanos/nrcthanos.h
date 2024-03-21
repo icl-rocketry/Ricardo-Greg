@@ -5,6 +5,7 @@
 
 #include <librnp/rnp_networkmanager.h>
 #include <librnp/rnp_packet.h>
+#include <libriccore/platform/esp32/ADC.h>
 
 #include <SiC43x.h>
 
@@ -17,8 +18,8 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         NRCThanos(RnpNetworkManager &networkmanager,
                     uint8_t fuelServoGPIO,
                     uint8_t fuelServoChannel,
-                    uint8_t oxServoGPIO,
-                    uint8_t oxServoChannel,
+                    uint8_t regServoGPIO,
+                    uint8_t regServoChannel,
                     uint8_t overrideGPIO,
                     uint8_t pTankGPIO,
                     uint8_t address,
@@ -35,7 +36,7 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
             _address(address),
             fuelServo(fuelServoGPIO,fuelServoChannel,networkmanager,0,0,180,0,175),
             regServo(regServoGPIO,regServoChannel, networkmanager,0,0,180,10,140),
-            _Buck(Buck)
+            adc(10,ADC_CHANNEL_9)
             {};
 
         void setup();
@@ -67,7 +68,7 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         NRCRemoteServo fuelServo;
         NRCRemoteServo regServo;
 
-        SiC43x& _Buck;
+        ADC adc;
 
         friend class NRCRemoteActuatorBase;
         friend class NRCRemoteBase;
@@ -145,13 +146,11 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         //-----------------------------------------------------------------------------------
 
         //bool timeFrameCheck(int64_t start_time, int64_t end_time = -1);
-        bool nominalEngineOp();
+        bool nominalRegOp();
         bool pValUpdated();
-
-        //FIGURE OUT WHAT THIS FUNCTION IS FOR
+        
         void resetVars(){
-            m_fuelServoPrevUpdate = 0;
-            m_fuelServoPrevAngle = fuelServo.getValue();
+            I_error = 0;
         };
 
         //Functions related to perfoming the state transitions
@@ -174,24 +173,27 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         float _thrust;
 
         uint64_t startTime; //Variable used to store the system time of test start in ms
+        uint16_t _ignitionCalls = 0;
 
         EngineState currentEngineState = EngineState::Default; //Set the starting engine state as Default/Disarmed
 
         bool shutdown_called = false; //WHAT IS THIS USED FOR?
+
+        bool _polling = true;
 
         //-----------------------------------------------------------------------------------
         //---- Component Calibration Constants ----------------------------------------------
         //-----------------------------------------------------------------------------------
 
         //GPIO Pressure transducer calibration constants
-        const uint32_t P_gradient = 57299; //CALIBRATED FOR KERMIT (NOT CHAD ADC)
-        const uint32_t P_offset = 723340; //CALIBRATED FOR KERMIT (NOT CHAD ADC)
+        const float P_gradient = 0.038; //CALIBRATED
+        const float P_offset = -10.76; //CALIBRATED
         
         //Regulator valve calibration angles
         const uint16_t regClosedAngle = 0; //CALIBRATED
-        const uint16_t regMinOpenAngle = 20; //CHECK WITH VALVE CALIBRATION
-        const uint16_t regMaxOpenAngle = 140; //CALIBRATED
-        const uint16_t regTankFillAngle = 35; //CHECK WITH VALVE CALIBRATION
+        const uint16_t regMinOpenAngle = 40; //CHECK WITH VALVE CALIBRATION
+        const uint16_t regMaxOpenAngle = 90; //CALIBRATED (Safeguard to prevent too high flow rates)
+        const uint16_t regTankFillAngle = 46; //CHECK WITH VALVE CALIBRATION
 
         //Fuel valve calibration angles
         const uint16_t fuelClosedAngle = 0; //CALIBRATED
@@ -203,10 +205,10 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         //-----------------------------------------------------------------------------------
         // Reserved for things that will change between experiments
 
-        const uint32_t testDuration = 4000; //time the valves are opened for in ms
+        const uint32_t testDuration = 5000; //time the valves are opened for in ms
         const uint16_t fuelServoOpenAngle = 150; //angle to move the fuel servo valve to during test
-        const uint16_t regServoOpenAngle = 40; //angle to open the reg valve to in the case of open loop control
-        const float P_set = 30; //LP tank set pressure [bar]
+        const uint16_t regServoOpenAngle = 55; //angle to open the reg valve to in the case of open loop control
+        const float P_set = 20; //LP tank set pressure [bar]
         const float Q_water = 1; //Expect volumetric flow rate of water [L/s]. Not necessarily constant
 
         //-----------------------------------------------------------------------------------
@@ -214,19 +216,19 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         //-----------------------------------------------------------------------------------
         
         //Abort Parameters
-        const float highAbortP = 50; //Upper pressure redline [bar] to cause abort
-        const float lowAbortP = 10; //Lower pressure redline [bar] to cause abort (to detect sensor disconnect)
+        const float highAbortP = 40; //Upper pressure redline [bar] to cause abort
+        const float lowAbortP = 0; //Lower pressure redline [bar] to cause abort (to detect sensor disconnect)
 
         //PID Controller constants
         const float K_p = 1.5; //Proportional controller gain
         const float K_i = 3; //Integral controller gain
-        const uint16_t I_lim = 20 //Limit for integral component to prevent integral windup
+        const uint16_t I_lim = 20; //Limit for integral component to prevent integral windup
 
         //Feed forward calculation constants
         const uint32_t FF_Precede = 200; //Amount of time the e-reg opening precedes the fuel valve opening in ms
         const uint32_t K_1 = 372; //Constant that converts Q * pressure ratio across valve into the required Kv for the valve
         const uint16_t C_1 = 20; //Equivalent to min. open angle of e-reg
-        const uint32_t C_2 = 171000; //Constant used to convert Kv to valve angle using linear function
+        const uint32_t C_2 = 100000; //Constant used to convert Kv to valve angle using linear function 171000 was found before
 
         //Variables used by controller
         uint64_t t_prev; //Used to save the time from the previous iteration (in milliseconds)
