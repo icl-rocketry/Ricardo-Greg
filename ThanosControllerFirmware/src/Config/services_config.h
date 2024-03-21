@@ -21,7 +21,7 @@ namespace Services{
     enum class ID:uint8_t{
         Thanos = 10,
         chamberPTap = 12,
-        thrustGauge = 17
+        thrustGauge = 17,
         HPtankPTap = 20 //CHECK, THIS IS PROBABLY WRONG
     };
 

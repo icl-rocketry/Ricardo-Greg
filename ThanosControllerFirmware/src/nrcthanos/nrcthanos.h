@@ -22,8 +22,7 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
                     uint8_t regServoChannel,
                     uint8_t overrideGPIO,
                     uint8_t pTankGPIO,
-                    uint8_t address,
-                    SiC43x& Buck
+                    uint8_t address
                     ):
             NRCRemoteActuatorBase(networkmanager),
             _networkmanager(networkmanager),      
@@ -216,8 +215,8 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         //-----------------------------------------------------------------------------------
         
         //Abort Parameters
-        const float highAbortP = 40; //Upper pressure redline [bar] to cause abort
-        const float lowAbortP = 0; //Lower pressure redline [bar] to cause abort (to detect sensor disconnect)
+        const float highAbortP = 100; //Upper pressure redline [bar] to cause abort
+        const float lowAbortP = -20; //Lower pressure redline [bar] to cause abort (to detect sensor disconnect)
 
         //PID Controller constants
         const float K_p = 1.5; //Proportional controller gain
