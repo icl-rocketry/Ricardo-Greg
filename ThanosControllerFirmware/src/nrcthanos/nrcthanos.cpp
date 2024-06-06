@@ -72,7 +72,7 @@ void NRCThanos::update()
         // Open reg valve to filling angle. Hold open until _lptankP reaches P_set and then close
         regServo.goto_Angle(regTankFillAngle);
 
-        if (get_lptankP() >= P_set)
+        if (get_lptankP() >= (P_set + P_fill_add))
         {
             regServo.goto_Angle(regClosedAngle);
             currentEngineState = EngineState::Default;
@@ -88,8 +88,18 @@ void NRCThanos::update()
     case EngineState::Controlled:
     {
 
-        //Open Fuel Valve tot start the test
-        fuelServo.goto_Angle(fuelServoOpenAngle);
+        //Open Fuel Valve to start the test
+        if ((millis() - startTime > fuelServoAngle3Time)) {
+            fuelServo.goto_Angle(fuelServoOpenAngle3);
+        } else if ((millis() - startTime > fuelServoAngle2Time))
+            {
+                fuelServo.goto_Angle(fuelServoOpenAngle2);
+            }
+        else {
+            fuelServo.goto_Angle(fuelServoOpenAngle);
+        }
+
+        //fuelServo.goto_Angle(fuelServoOpenAngle);
 
         //Start closed loop control of regulator valve
         regServo.goto_Angle(closedLoopAngle());
@@ -119,8 +129,14 @@ void NRCThanos::update()
         //Open Fuel Valve tot start the test
         fuelServo.goto_Angle(fuelServoOpenAngle);
 
-        //Start open loop control of regulator valve (move to set position)
-        regServo.goto_Angle(regServoOpenAngle);
+        if (((millis() - startTime > 150))) //Only open the reg valve after 100ms to prevent initial overshoot
+        {
+            regServo.goto_Angle(regServoOpenAngle);
+            //break;
+        }
+
+        //Start open loop control of regulator valve after a short delay (move to set position)
+        //regServo.goto_Angle(regServoOpenAngle);
 
         break;
     }
@@ -155,7 +171,7 @@ void NRCThanos::execute_impl(packetptr_t packetptr)
         {
             break;
         }
-        currentEngineState = EngineState::Openloop; //Change 'Controlled' to 'Openloop' if doing an open loop test
+        currentEngineState = EngineState::Controlled; //Change 'Controlled' to 'Openloop' if doing an open loop test
         startTime = millis();
         _ignitionCalls = 1;
         _polling = true;
@@ -242,31 +258,53 @@ uint16_t NRCThanos::closedLoopAngle()
     float error = P_set - get_lptankP(); //Calculate error in tank pressure
     float dt = (millis() - t_prev)/1000; //Calculate the time since the last
     t_prev = millis();
-    I_error = I_error + error*dt; //Increment the integral counter
-    float I_term = K_i*I_error;
+
+    if (error/prev_error < 0) //Detect for error zero crossings (error changing from +ve to -ve or vice versa)
+    {
+        I_error = 0; //Reset the integrator to zero
+    }
+
+    prev_error = error;
+
+    I_error = I_error + error*dt; //Increment the integrator
 
     //Set upper and lower bounds to the integral term to prevent windup
-    if (I_term > I_lim)
+    if (I_error > I_lim)
     {
-        I_term = I_lim;
+        I_error = I_lim;
     }
-    else if (I_term < -I_lim)
+    else if (I_error < -I_lim)
     {
-        I_term = -I_lim;
+        I_error = -I_lim;
     }
+
+    float I_term = K_i*I_error;
+
+    float K_p = K_p_0 + K_p_alpha*Angle_integrator;
+
     uint16_t reg_angle = (int) (K_p*error + I_term + feedforward());
 
     //Set upper and lower bounds for the regualtor valve angle (figure out where these values should be defined from calibration)
     if (reg_angle > regMaxOpenAngle)
     {
-        reg_angle = regMaxOpenAngle;
+        reg_angle = regMaxOpenAngle; //Prevent reg opening too much
     }
     else if (reg_angle < regMinOpenAngle)
     {
-        reg_angle = regMinOpenAngle;
+        reg_angle = regMinOpenAngle; //Prevent reg closing
     }
 
-    //somehow record the current reg valve angle on the backend?
+    Angle_integrator += (reg_angle-regMinOpenAngle)*dt; //Increment the angle integrator (proxy for ullage volume change over time)
+
+    // Constrain the angle integrator and prevent it becoming negative (shouldn't be possible)
+    if (Angle_integrator > 150)
+    {
+        Angle_integrator = 150;
+    }
+    else if (Angle_integrator < 0)
+    {
+        Angle_integrator = 0;
+    }
 
     return reg_angle;
 
@@ -275,7 +313,18 @@ uint16_t NRCThanos::closedLoopAngle()
 //Function to calculate the feedforward angle based on upstream pressure, set pressure and expected flowrate
 uint16_t NRCThanos::feedforward()
 {
-    uint16_t FF_angle = C_2*((Q_water*(P_set/200))/K_1) + C_1; //CHANGE TO PUT _HPtankP instead of 200
+    //uint16_t FF_angle = C_2*((Q_water*(P_set/_HPtankP))/K_1) + C_1; //CHANGE TO PUT _HPtankP instead of 200
+    //uint16_t FF_angle = 47;
+    uint16_t FF_angle = ((C_2*Q_water*P_set)/_HPtankP) + C_1;
+    if (FF_angle > 55)
+    {
+        FF_angle = 55;
+    }
+    else if (FF_angle < C_1)
+    {
+        FF_angle = C_1;
+    }
+
     return FF_angle;
 }
 

@@ -150,6 +150,7 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         
         void resetVars(){
             I_error = 0;
+            Angle_integrator = 0;
         };
 
         //Functions related to perfoming the state transitions
@@ -186,13 +187,13 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
 
         //GPIO Pressure transducer calibration constants
         const float P_gradient = 0.038; //CALIBRATED
-        const float P_offset = -10.76; //CALIBRATED
+        const float P_offset = -12.76; //CALIBRATED (should be -11.76 but reduced by 1 to match daq measurement)
         
         //Regulator valve calibration angles
         const uint16_t regClosedAngle = 0; //CALIBRATED
-        const uint16_t regMinOpenAngle = 40; //CHECK WITH VALVE CALIBRATION
-        const uint16_t regMaxOpenAngle = 90; //CALIBRATED (Safeguard to prevent too high flow rates)
-        const uint16_t regTankFillAngle = 46; //CHECK WITH VALVE CALIBRATION
+        const uint16_t regMinOpenAngle = 40; //CALIBRATED
+        const uint16_t regMaxOpenAngle = 70; //CALIBRATED (Safeguard to prevent too high flow rates)
+        const uint16_t regTankFillAngle = 45; //CALIBRATED
 
         //Fuel valve calibration angles
         const uint16_t fuelClosedAngle = 0; //CALIBRATED
@@ -204,33 +205,43 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         //-----------------------------------------------------------------------------------
         // Reserved for things that will change between experiments
 
-        const uint32_t testDuration = 5000; //time the valves are opened for in ms
-        const uint16_t fuelServoOpenAngle = 150; //angle to move the fuel servo valve to during test
-        const uint16_t regServoOpenAngle = 55; //angle to open the reg valve to in the case of open loop control
-        const float P_set = 20; //LP tank set pressure [bar]
-        const float Q_water = 1; //Expect volumetric flow rate of water [L/s]. Not necessarily constant
+        const uint16_t fuelServoOpenAngle = 170; //angle to move the fuel servo valve to during test
+        const uint32_t fuelServoAngle2Time = 100; //time when the valve moves to the 2nd angle
+        const uint16_t fuelServoOpenAngle2 = 170; //2nd angle to move the fuel servo to
+        const uint32_t fuelServoAngle3Time = 5000; //time when the valve moves to the 3rd angle
+        const uint16_t fuelServoOpenAngle3 = 170; //3rd angle to move the fuel servo to
+        const uint32_t testDuration = 8000; //time the valves are opened for in ms
+
+        const uint16_t regServoOpenAngle = 46; //angle to open the reg valve to in the case of open loop control
+
+        const float P_set = 30; //LP tank set pressure [bar]
+        const float P_fill_add = 1.5; //Additional amount to add to the set pressure during filling to reach the target
+        const float Q_water = 0.8; //Expect volumetric flow rate of water [L/s]. Not necessarily constant
 
         //-----------------------------------------------------------------------------------
         //---- Controller Parameters --------------------------------------------------------
         //-----------------------------------------------------------------------------------
         
         //Abort Parameters
-        const float highAbortP = 100; //Upper pressure redline [bar] to cause abort
-        const float lowAbortP = -20; //Lower pressure redline [bar] to cause abort (to detect sensor disconnect)
+        const float highAbortP = 50; //Upper pressure redline [bar] to cause abort
+        const float lowAbortP = -2; //Lower pressure redline [bar] to cause abort (to detect sensor disconnect)
 
         //PID Controller constants
-        const float K_p = 1.5; //Proportional controller gain
-        const float K_i = 3; //Integral controller gain
-        const uint16_t I_lim = 20; //Limit for integral component to prevent integral windup
+        const float K_p_0 = 2; //Initial Proportional controller gain
+        const float K_p_alpha = 0.015; //Gain increase proportional constant
+        const float K_i = 1.5; //Integral controller gain
+        const uint16_t I_lim = 5; //Limit for integral component to prevent integral windup
 
         //Feed forward calculation constants
-        const uint32_t FF_Precede = 200; //Amount of time the e-reg opening precedes the fuel valve opening in ms
+        const uint32_t FF_Precede = 0; //Amount of time the e-reg opening precedes the fuel valve opening in ms
         const uint32_t K_1 = 372; //Constant that converts Q * pressure ratio across valve into the required Kv for the valve
-        const uint16_t C_1 = 20; //Equivalent to min. open angle of e-reg
-        const uint32_t C_2 = 100000; //Constant used to convert Kv to valve angle using linear function 171000 was found before
+        const uint16_t C_1 = regMinOpenAngle; //Equivalent to min. open angle of e-reg
+        const uint32_t C_2 = 50; //Constant used to convert Kv to valve angle using linear function 171000 was found before
 
         //Variables used by controller
         uint64_t t_prev; //Used to save the time from the previous iteration (in milliseconds)
+        float prev_error = 0; //Used to save the previous error to detect zero crossings
         float I_error = 0; //Used to save the current integral value to be added to or subtracted from
+        float Angle_integrator = 0; //Used to count up the cumulative open angle over time (estimate ullage change)
 
 };
