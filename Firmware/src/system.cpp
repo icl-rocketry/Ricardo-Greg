@@ -16,13 +16,24 @@
 
 #include "States/idle.h"
 
+#include <librrc/rocketcomponent.h>
 
+//I'm guessing this is where most things in the overall system are connected together using existing definitions from other header files
 System::System():
 RicCoreSystem(Commands::command_map,Commands::defaultEnabledCommands,Serial),
 Buck(PinMap::BuckPGOOD, PinMap::BuckEN, 1, 1, PinMap::BuckOutputV, 1500, 470),
 canbus(systemstatus,PinMap::TxCan,PinMap::RxCan,3),
-Servo1(PinMap::ServoPWM1, 0, networkmanager),
-Servo2(PinMap::ServoPWM2, 1, networkmanager)
+chamberPTap(1, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::chamberPTap), static_cast<uint8_t>(Services::ID::chamberPTap), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
+thrustGauge(2, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::thrustGauge), static_cast<uint8_t>(Services::ID::thrustGauge), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
+//**** CHECK THIS IS ANYWHERE CLOSE TO CORRECT ****
+HPtankPTap(3, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::HPtankPTap), static_cast<uint8_t>(Services::ID::HPtankPTap), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
+//*************************************************
+chamberPTapPoller(50, &chamberPTap),
+thrustGaugePoller(20, &thrustGauge),
+HPTankPTapPoller(50, &HPtankPTap), //Numbers refer to the sample time in ms
+
+//This is used in nrcthanos.h to define the pinouts using pinmap_config.h
+Thanos(networkmanager,PinMap::ServoPWM1,0,PinMap::ServoPWM2,1,PinMap::EngineOverride,PinMap::LPTankP,networkmanager.getAddress())
 {};
 
 
@@ -40,27 +51,51 @@ void System::systemSetup(){
     //any other setup goes here
     
     Buck.setup();
-    Servo1.setup();
-    Servo2.setup();
+    chamberPTapPoller.setup();
+    thrustGaugePoller.setup();
+    HPTankPTapPoller.setup(); //CHECK THIS IS CORRECT
+    Thanos.setup();
     canbus.setup();
-    
+    networkmanager.addInterface(&canbus);
+
     networkmanager.setNodeType(NODETYPE::HUB);
     networkmanager.setNoRouteAction(NOROUTE_ACTION::BROADCAST,{1,3});
 
     //Defining these so the methods following are less ugly
-    uint8_t servoservice1 = (uint8_t) Services::ID::Servo1;
-    uint8_t servoservice2 = (uint8_t) Services::ID::Servo2;
+    uint8_t thanosservice = static_cast<uint8_t>(Services::ID::Thanos);
+    uint8_t chamberPTapservice = static_cast<uint8_t>(Services::ID::chamberPTap);
+    uint8_t thrustGaugeservice = static_cast<uint8_t>(Services::ID::thrustGauge);
+    uint8_t HPtankPTapservice = static_cast<uint8_t>(Services::ID::HPtankPTap);
 
-    networkmanager.addInterface(&canbus);
-
-    networkmanager.registerService(servoservice1,Servo1.getThisNetworkCallback());
-    networkmanager.registerService(servoservice2,Servo2.getThisNetworkCallback());
-    
+    networkmanager.registerService(thanosservice,Thanos.getThisNetworkCallback());
+    networkmanager.registerService(chamberPTapservice,[this](packetptr_t packetptr){chamberPTap.networkCallback(std::move(packetptr));});
+    networkmanager.registerService(thrustGaugeservice,[this](packetptr_t packetptr){thrustGauge.networkCallback(std::move(packetptr));});
+    networkmanager.registerService(HPtankPTapservice,[this](packetptr_t packetptr){HPtankPTap.networkCallback(std::move(packetptr));});
 };
-
-long prevTime = 0;
-bool update = false;
 
 void System::systemUpdate(){
     Buck.update();
+
+    if(Thanos.getPollingStatus()){  
+        chamberPTapPoller.update();
+        thrustGaugePoller.update();
+        HPTankPTapPoller.update();
+    }
+    
+    if(chamberPTapPoller.newdata)
+    {
+        Thanos.updateChamberP(chamberPTapPoller.getVal());
+    }
+
+    if(thrustGaugePoller.newdata)
+    {
+        Thanos.updateThrust(thrustGaugePoller.getVal());
+    }
+
+    if(HPTankPTapPoller.newdata)
+    {
+        Thanos.updateHPtankP(HPTankPTapPoller.getVal());
+    }
+
+    Thanos.update();
 };

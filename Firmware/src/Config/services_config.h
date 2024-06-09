@@ -19,8 +19,10 @@ namespace Services{
      * 
      */
     enum class ID:uint8_t{
-        Servo1 = 10,
-        Servo2 = 11
+        Thanos = 10,
+        chamberPTap = 12,
+        thrustGauge = 17,
+        HPtankPTap = 20 //CHECK, THIS IS PROBABLY WRONG
     };
 
 };

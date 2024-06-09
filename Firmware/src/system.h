@@ -1,16 +1,21 @@
 #pragma once
 
 #include <libriccore/riccoresystem.h>
-#include <librrc/nrcremoteservo.h>
+#include <libriccore/networkinterfaces/can/canbus.h>
+#include <librrc/networksensor.h>
+#include "librrc/sensorpoller.h"
 
 #include "Config/systemflags_config.h"
 #include "Config/commands_config.h"
 #include "Config/pinmap_config.h"
-#include <libriccore/networkinterfaces/can/canbus.h>
+
+
+#include "SiC43x.h"
+#include "nrcthanos/nrcthanos.h"
 
 #include "Commands/commands.h"
 
-#include "SiC43x.h"
+
 class System : public RicCoreSystem<System,SYSTEM_FLAG,Commands::ID>
 {
     public:
@@ -25,10 +30,19 @@ class System : public RicCoreSystem<System,SYSTEM_FLAG,Commands::ID>
 
         CanBus<SYSTEM_FLAG> canbus;
 
-    private:
+        NetworkSensor chamberPTap;
+        NetworkSensor thrustGauge;
+        NetworkSensor HPtankPTap;
+        SensorPoller chamberPTapPoller;
+        SensorPoller thrustGaugePoller;
+        SensorPoller HPTankPTapPoller;
 
-        NRCRemoteServo Servo1;
-        NRCRemoteServo Servo2;
+        NRCThanos Thanos;
+
+    // private:
+
+        
+
         
 
 };
