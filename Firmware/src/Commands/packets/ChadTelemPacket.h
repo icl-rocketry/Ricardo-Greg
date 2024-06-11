@@ -13,10 +13,11 @@ class ChadTelemPacket : public RnpPacket{
         static constexpr auto getSerializer()
         {
             auto ret = RnpSerializer(
-                &ChadTelemPacket::lptankP,
-                &ChadTelemPacket::fuelAngle,
+                &ChadTelemPacket::servoVoltage,
+                &ChadTelemPacket::ox_tankP,
                 &ChadTelemPacket::regAngle,
-                &ChadTelemPacket::thanosState,
+                &ChadTelemPacket::P_angle,
+                &ChadTelemPacket::I_angle,
                 &ChadTelemPacket::system_status,
                 &ChadTelemPacket::system_time
             );
@@ -42,10 +43,11 @@ class ChadTelemPacket : public RnpPacket{
          */
         void serialize(std::vector<uint8_t>& buf) override;
 
-        float lptankP;
-        uint16_t fuelAngle;
-        uint16_t regAngle;
-        uint8_t thanosState;
+        float servoVoltage;
+        float ox_tankP;
+        float regAngle;
+        float P_angle;
+        float I_angle;
         uint32_t system_status;
         uint64_t system_time;
 

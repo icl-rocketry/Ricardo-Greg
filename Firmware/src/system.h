@@ -2,8 +2,8 @@
 
 #include <libriccore/riccoresystem.h>
 #include <libriccore/networkinterfaces/can/canbus.h>
-#include <librrc/networksensor.h>
-#include "librrc/sensorpoller.h"
+#include <librrc/Interface/networksensor.h>
+#include <librrc/Helpers/sensorpoller.h>
 
 #include "Config/systemflags_config.h"
 #include "Config/commands_config.h"
@@ -30,11 +30,9 @@ class System : public RicCoreSystem<System,SYSTEM_FLAG,Commands::ID>
 
         CanBus<SYSTEM_FLAG> canbus;
 
-        NetworkSensor chamberPTap;
-        NetworkSensor thrustGauge;
+        NetworkSensor fuelTankPTap;
         NetworkSensor HPtankPTap;
-        SensorPoller chamberPTapPoller;
-        SensorPoller thrustGaugePoller;
+        SensorPoller fuelTankPoller;
         SensorPoller HPTankPTapPoller;
 
         NRCThanos Thanos;

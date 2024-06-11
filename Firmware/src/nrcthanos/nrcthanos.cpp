@@ -10,28 +10,25 @@
 // Setup for the E-Reg Controller
 void NRCThanos::setup()
 {
-    fuelServo.setup();
     regServo.setup();
 
     adc.setup();
 
-    fuelServo.setAngleLims(fuelClosedAngle, fuelMaxOpenAngle);
     regServo.setAngleLims(regClosedAngle, regMaxOpenAngle);
 
-    pinMode(_overrideGPIO, INPUT_PULLUP); //May still keep manual override, not sure
-    pinMode(_pTankGPIO, INPUT_PULLUP); //Figure out how this GPIO pin is defined and where
-
+    pinMode(_overrideGPIO, INPUT_PULLUP); // May still keep manual override, not sure
+    pinMode(_pTankGPIO, INPUT_PULLUP);    // Figure out how this GPIO pin is defined and where
 }
 
 void NRCThanos::update()
 {
     // Close valves if component disarmed
-    if (this->_state.flagSet(COMPONENT_STATUS_FLAGS::DISARMED))
+    if (this->_state.flagSet(LIBRRC::COMPONENT_STATUS_FLAGS::DISARMED))
     {
         currentEngineState = EngineState::Default;
     }
+
     /*
-    // Close valves if abort is used - CHECK IF KEEPING ABORT OR NOT
     if (digitalRead(_overrideGPIO) == 1)
     {
         currentEngineState = EngineState::ShutDown;
@@ -42,24 +39,23 @@ void NRCThanos::update()
     if ((millis() - startTime > testDuration) && _ignitionCalls > 0)
     {
         currentEngineState = EngineState::ShutDown;
-        _ignitionCalls = 0; //Flag used to ensure that system can exit the shutdown state
+        _ignitionCalls = 0; // Flag used to ensure that system can exit the shutdown state
     }
 
     adc.update();
+    _value = static_cast<uint32_t>(currentEngineState);
 
     switch (currentEngineState)
     {
-
+        
     // Default (turn on) state
     case EngineState::Default:
     {
-        fuelServo.goto_Angle(fuelClosedAngle);
         regServo.goto_Angle(regClosedAngle);
-        _polling = true; //what does this do?
+        _polling = false; // what does this do?
 
-        if (this->_state.flagSet(COMPONENT_STATUS_FLAGS::NOMINAL))
+        if (this->_state.flagSet(LIBRRC::COMPONENT_STATUS_FLAGS::NOMINAL))
         {
-            
         }
         break;
     }
@@ -67,7 +63,7 @@ void NRCThanos::update()
     // Tank pressurisation state
     case EngineState::Filling:
 
-    {   
+    {
 
         // Open reg valve to filling angle. Hold open until _lptankP reaches P_set and then close
         regServo.goto_Angle(regTankFillAngle);
@@ -76,10 +72,9 @@ void NRCThanos::update()
         {
             regServo.goto_Angle(regClosedAngle);
             currentEngineState = EngineState::Default;
-            //resetVars();
+            // resetVars();
             break;
         }
-
 
         break;
     }
@@ -88,21 +83,8 @@ void NRCThanos::update()
     case EngineState::Controlled:
     {
 
-        //Open Fuel Valve to start the test
-        if ((millis() - startTime > fuelServoAngle3Time)) {
-            fuelServo.goto_Angle(fuelServoOpenAngle3);
-        } else if ((millis() - startTime > fuelServoAngle2Time))
-            {
-                fuelServo.goto_Angle(fuelServoOpenAngle2);
-            }
-        else {
-            fuelServo.goto_Angle(fuelServoOpenAngle);
-        }
-
-        //fuelServo.goto_Angle(fuelServoOpenAngle);
-
-        //Start closed loop control of regulator valve
-        regServo.goto_Angle(closedLoopAngle());
+        // Start closed loop control of regulator valve
+        regServo.goto_AngleHighRes(closedLoopAngle());
 
         if (((millis() - startTime > testDuration)) || !nominalRegOp())
         {
@@ -110,33 +92,6 @@ void NRCThanos::update()
             // resetVars();
             break;
         }
-
-        break;
-    }
-
-    // Open loop control state (only to be used for certain tests)
-    case EngineState::Openloop:
-    {
-
-        //
-        if (((millis() - startTime > testDuration)) || !nominalRegOp())
-        {
-            currentEngineState = EngineState::ShutDown;
-            // resetVars();
-            break;
-        }
-
-        //Open Fuel Valve tot start the test
-        fuelServo.goto_Angle(fuelServoOpenAngle);
-
-        if (((millis() - startTime > 150))) //Only open the reg valve after 100ms to prevent initial overshoot
-        {
-            regServo.goto_Angle(regServoOpenAngle);
-            //break;
-        }
-
-        //Start open loop control of regulator valve after a short delay (move to set position)
-        //regServo.goto_Angle(regServoOpenAngle);
 
         break;
     }
@@ -145,7 +100,9 @@ void NRCThanos::update()
     case EngineState::ShutDown:
     {
         regServo.goto_Angle(regClosedAngle);
-        fuelServo.goto_Angle(fuelClosedAngle);
+        m_I_angle = 0;
+        m_P_angle = 0;
+        m_regAngleHiRes = regClosedAngle;
         _polling = false;
 
         break;
@@ -171,7 +128,7 @@ void NRCThanos::execute_impl(packetptr_t packetptr)
         {
             break;
         }
-        currentEngineState = EngineState::Controlled; //Change 'Controlled' to 'Openloop' if doing an open loop test
+        currentEngineState = EngineState::Controlled; // Change 'Controlled' to 'Openloop' if doing an open loop test
         startTime = millis();
         _ignitionCalls = 1;
         _polling = true;
@@ -204,7 +161,7 @@ void NRCThanos::execute_impl(packetptr_t packetptr)
         {
             break;
         }
-        _polling = false;
+        _polling = true;
         currentEngineState = EngineState::Filling;
         RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Pressurisation Start");
         break;
@@ -219,18 +176,6 @@ void NRCThanos::extendedCommandHandler_impl(const NRCPacket::NRC_COMMAND_ID comm
     switch (static_cast<uint8_t>(commandID))
     {
     case 6:
-    {
-        if (currentEngineState == EngineState::Debug)
-        {
-            fuelServo.goto_Angle(command_packet.arg);
-            break;
-        }
-        else
-        {
-            break;
-        }
-    }
-    case 7:
     {
         if (currentEngineState == EngineState::Debug)
         {
@@ -250,25 +195,25 @@ void NRCThanos::extendedCommandHandler_impl(const NRCPacket::NRC_COMMAND_ID comm
 }
 
 // Function to apply the closed loop PI controller with feed forward. FIGURE OUT HOW PRESSURES ARE MEASURED AND WHICH FUNCTION TO DO THAT IN
-uint16_t NRCThanos::closedLoopAngle()
+float NRCThanos::closedLoopAngle()
 {
-    //float _HPtankP = _HPtankP; //Replace with actual measurement of the upstream tank pressure
-    // float P_HP_TANK = 200;
+    // float _HPtankP = _HPtankP; //Replace with actual measurement of the upstream tank pressure
+    //  float P_HP_TANK = 200;
 
-    float error = P_set - get_lptankP(); //Calculate error in tank pressure
-    float dt = (millis() - t_prev)/1000; //Calculate the time since the last
+    float error = P_set - get_lptankP();   // Calculate error in tank pressure
+    float dt = (millis() - t_prev) / 1000; // Calculate the time since the last
     t_prev = millis();
 
-    if (error/prev_error < 0) //Detect for error zero crossings (error changing from +ve to -ve or vice versa)
+    if (error / prev_error < 0) // Detect for error zero crossings (error changing from +ve to -ve or vice versa)
     {
-        I_error = 0; //Reset the integrator to zero
+        I_error = 0; // Reset the integrator to zero
     }
 
     prev_error = error;
 
-    I_error = I_error + error*dt; //Increment the integrator
+    I_error = I_error + error * dt; // Increment the integrator
 
-    //Set upper and lower bounds to the integral term to prevent windup
+    // Set upper and lower bounds to the integral term to prevent windup
     if (I_error > I_lim)
     {
         I_error = I_lim;
@@ -278,23 +223,26 @@ uint16_t NRCThanos::closedLoopAngle()
         I_error = -I_lim;
     }
 
-    float I_term = K_i*I_error;
+    float I_term = K_i * I_error;
+    m_I_angle = I_term;
 
-    float K_p = K_p_0 + K_p_alpha*Angle_integrator;
+    float K_p = K_p_0 + K_p_alpha * Angle_integrator;
+    m_P_angle = K_p * error;
 
-    uint16_t reg_angle = (int) (K_p*error + I_term + feedforward());
+    float reg_angle = (float)(K_p * error + I_term + feedforward());
+    m_regAngleHiRes = reg_angle;
 
-    //Set upper and lower bounds for the regualtor valve angle (figure out where these values should be defined from calibration)
+    // Set upper and lower bounds for the regualtor valve angle (figure out where these values should be defined from calibration)
     if (reg_angle > regMaxOpenAngle)
     {
-        reg_angle = regMaxOpenAngle; //Prevent reg opening too much
+        reg_angle = regMaxOpenAngle; // Prevent reg opening too much
     }
     else if (reg_angle < regMinOpenAngle)
     {
-        reg_angle = regMinOpenAngle; //Prevent reg closing
+        reg_angle = regMinOpenAngle; // Prevent reg closing
     }
 
-    Angle_integrator += (reg_angle-regMinOpenAngle)*dt; //Increment the angle integrator (proxy for ullage volume change over time)
+    Angle_integrator += (reg_angle - regMinOpenAngle) * dt; // Increment the angle integrator (proxy for ullage volume change over time)
 
     // Constrain the angle integrator and prevent it becoming negative (shouldn't be possible)
     if (Angle_integrator > 150)
@@ -307,15 +255,13 @@ uint16_t NRCThanos::closedLoopAngle()
     }
 
     return reg_angle;
-
 }
 
-//Function to calculate the feedforward angle based on upstream pressure, set pressure and expected flowrate
-uint16_t NRCThanos::feedforward()
+// Function to calculate the feedforward angle based on upstream pressure, set pressure and expected flowrate
+float NRCThanos::feedforward()
 {
-    //uint16_t FF_angle = C_2*((Q_water*(P_set/_HPtankP))/K_1) + C_1; //CHANGE TO PUT _HPtankP instead of 200
-    //uint16_t FF_angle = 47;
-    uint16_t FF_angle = ((C_2*Q_water*P_set)/_HPtankP) + C_1;
+
+    float FF_angle = ((C_2 * Q_water * P_set) / _HPtankP) + C_1;
     if (FF_angle > 55)
     {
         FF_angle = 55;
@@ -337,21 +283,8 @@ bool NRCThanos::nominalRegOp()
     }
     else
     {
-        return false; //Trigger an abort
+        return false; // Trigger an abort
     }
-}
-
-//Not sure what the point of this function is??
-void NRCThanos::updateChamberP(float chamberP)
-{
-    lastTimeChamberPUpdate = millis();
-    _chamberP = chamberP;
-}
-
-void NRCThanos::updateThrust(float thrust)
-{
-    lastTimeThrustUpdate = millis();
-    _thrust = abs(thrust);
 }
 
 void NRCThanos::updateHPtankP(float HPtankP)
@@ -360,143 +293,15 @@ void NRCThanos::updateHPtankP(float HPtankP)
     _HPtankP = HPtankP;
 }
 
+void NRCThanos::updateFuelTankP(float fueltankP)
+{
+    lastTimeFuelPUpdate = millis();
+    _fueltankP = fueltankP;
+}
+
 // Get the pressure reading from the GPIO pin and convert to [barA] (Absolute pressure)
 float NRCThanos::get_lptankP()
 {
-    float P = (P_gradient* (float) adc.getADC() + P_offset);
+    float P = (P_gradient * (float)adc.getADC() + P_offset);
     return P;
 }
-
-/*
-
-// Not sure what this is for, some network thing
-bool NRCThanos::pValUpdated()
-{
-    if ((millis() - lastTimeChamberPUpdate) > pressureUpdateTimeLim || (millis() - lastTimeThrustUpdate) > pressureUpdateTimeLim)
-    {
-        return false;
-    }
-    else
-    {
-        return true;
-    }
-}
-
-// Not sure this is needed
-bool NRCThanos::timeFrameCheck(int64_t start_time, int64_t end_time)
-{
-    if (millis() - ignitionTime > start_time && end_time == -1)
-    {
-        return true;
-    }
-
-    else if (millis() - ignitionTime > start_time && millis() - ignitionTime < end_time)
-    {
-        return true;
-    }
-
-    else
-    {
-        return false;
-    }
-}
-
-
-void NRCThanos::gotoWithSpeed(NRCRemoteServo &Servo, uint16_t demandAngle, float speed, float &prevAngle, float &currAngle, uint32_t &prevUpdateT)
-{
-    if (millis() - prevUpdateT < 10)
-    {
-        return;
-    }
-
-    if (prevUpdateT == 0)
-    {
-        prevUpdateT = millis();
-        return;
-    }
-
-    float timeSinceLast = (float)(millis() - prevUpdateT) / 1000.0; // in seconds;
-
-    if ((demandAngle - prevAngle) > 0)
-    {
-        currAngle = prevAngle + (timeSinceLast * speed);
-    }
-    else if ((demandAngle - prevAngle) < 0)
-    {
-        currAngle = prevAngle - (timeSinceLast * speed);
-    }
-    else
-    {
-        currAngle = currAngle;
-    }
-
-    // RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(std::to_string(currAngle));
-    // RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(std::to_string(_thrust));
-    // Servo.goto_Angle(static_cast<uint16_t>(currAngle));
-    Servo.goto_AngleHighRes(currAngle);
-    prevAngle = currAngle;
-
-    prevUpdateT = millis();
-}
-
-
-void NRCThanos::gotoThrust(float target, float closespeed, float openspeed)
-{
-    // if ((target * 1.02 > _thrust || target * 0.98 < _thrust) && !m_thrustreached)
-    // {
-    //     m_timeThrustreached = millis();
-    //     m_thrustreached = true;
-    // }
-
-    // RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(std::to_string(target));
-    // RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(std::to_string(_thrust));
-
-    if (target * 1.02 < _thrust)
-    {
-        gotoWithSpeed(oxServo, 70, closespeed, m_oxServoPrevAngle, m_oxServoCurrAngle, m_oxServoPrevUpdate);
-    }
-    else if (_thrust < target * 0.98)
-    {
-        gotoWithSpeed(oxServo, 180, openspeed, m_oxServoPrevAngle, m_oxServoCurrAngle, m_oxServoPrevUpdate);
-    }
-    else
-    {
-        oxServo.goto_Angle(m_oxServoCurrAngle);
-    }
-
-    m_oxPercent = (float)(m_oxServoCurrAngle - oxServoPreAngle) / (float)(m_oxThrottleRange);
-    m_fuelPercent = m_oxPercent + m_fuelExtra;
-    float fuelAngle = (float)(m_fuelPercent * m_fuelThrottleRange) + fuelServoPreAngle;
-
-    if (fuelAngle < fuelServoPreAngle)
-    {
-        fuelServo.goto_AngleHighRes(fuelServoPreAngle);
-    }
-    else
-    {
-        fuelServo.goto_AngleHighRes(fuelAngle);
-    }
-}
-
-void NRCThanos::firePyro(uint32_t duration)
-{
-    if (millis() - _prevFiring > _ignitionCommandSendDelta)
-    {
-        if (_ignitionCalls < _ignitionCommandMaxCalls)
-        {
-            SimpleCommandPacket ignition_command(2, duration);
-            ignition_command.header.source_service = static_cast<uint8_t>(Services::ID::Thanos);
-            ignition_command.header.destination_service = m_ingitionService;
-            ignition_command.header.source = _address;
-            ignition_command.header.destination = m_ignitionNode;
-            ignition_command.header.uid = 0;
-            _networkmanager.sendPacket(ignition_command);
-            _prevFiring = millis();
-            _ignitionCalls++;
-        }
-    }
-}
-
-*/
-
-

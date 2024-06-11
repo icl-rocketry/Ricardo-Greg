@@ -16,24 +16,20 @@
 
 #include "States/idle.h"
 
-#include <librrc/rocketcomponent.h>
+#include <librrc/Interface/rocketcomponent.h>
 
 //I'm guessing this is where most things in the overall system are connected together using existing definitions from other header files
 System::System():
 RicCoreSystem(Commands::command_map,Commands::defaultEnabledCommands,Serial),
 Buck(PinMap::BuckPGOOD, PinMap::BuckEN, 1, 1, PinMap::BuckOutputV, 1500, 470),
 canbus(systemstatus,PinMap::TxCan,PinMap::RxCan,3),
-chamberPTap(1, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::chamberPTap), static_cast<uint8_t>(Services::ID::chamberPTap), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
-thrustGauge(2, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::thrustGauge), static_cast<uint8_t>(Services::ID::thrustGauge), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
-//**** CHECK THIS IS ANYWHERE CLOSE TO CORRECT ****
-HPtankPTap(3, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::HPtankPTap), static_cast<uint8_t>(Services::ID::HPtankPTap), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
-//*************************************************
-chamberPTapPoller(50, &chamberPTap),
-thrustGaugePoller(20, &thrustGauge),
-HPTankPTapPoller(50, &HPtankPTap), //Numbers refer to the sample time in ms
+fuelTankPTap(1, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::fuelTankPTap), static_cast<uint8_t>(Services::ID::fuelTankPTap), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
+HPtankPTap(2, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::HPtankPTap), static_cast<uint8_t>(Services::ID::HPtankPTap), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
+fuelTankPoller(50, &fuelTankPTap),
+HPTankPTapPoller(50, &HPtankPTap),
 
 //This is used in nrcthanos.h to define the pinouts using pinmap_config.h
-Thanos(networkmanager,PinMap::ServoPWM1,0,PinMap::ServoPWM2,1,PinMap::EngineOverride,PinMap::LPTankP,networkmanager.getAddress())
+Thanos(networkmanager,PinMap::ServoPWM1,0,PinMap::EngineOverride,PinMap::LPTankP,networkmanager.getAddress())
 {};
 
 
@@ -51,8 +47,7 @@ void System::systemSetup(){
     //any other setup goes here
     
     Buck.setup();
-    chamberPTapPoller.setup();
-    thrustGaugePoller.setup();
+    fuelTankPoller.setup();
     HPTankPTapPoller.setup(); //CHECK THIS IS CORRECT
     Thanos.setup();
     canbus.setup();
@@ -63,13 +58,11 @@ void System::systemSetup(){
 
     //Defining these so the methods following are less ugly
     uint8_t thanosservice = static_cast<uint8_t>(Services::ID::Thanos);
-    uint8_t chamberPTapservice = static_cast<uint8_t>(Services::ID::chamberPTap);
-    uint8_t thrustGaugeservice = static_cast<uint8_t>(Services::ID::thrustGauge);
+    uint8_t fuelTankPTapservice = static_cast<uint8_t>(Services::ID::fuelTankPTap);
     uint8_t HPtankPTapservice = static_cast<uint8_t>(Services::ID::HPtankPTap);
 
     networkmanager.registerService(thanosservice,Thanos.getThisNetworkCallback());
-    networkmanager.registerService(chamberPTapservice,[this](packetptr_t packetptr){chamberPTap.networkCallback(std::move(packetptr));});
-    networkmanager.registerService(thrustGaugeservice,[this](packetptr_t packetptr){thrustGauge.networkCallback(std::move(packetptr));});
+    networkmanager.registerService(fuelTankPTapservice,[this](packetptr_t packetptr){fuelTankPTap.networkCallback(std::move(packetptr));});
     networkmanager.registerService(HPtankPTapservice,[this](packetptr_t packetptr){HPtankPTap.networkCallback(std::move(packetptr));});
 };
 
@@ -77,19 +70,13 @@ void System::systemUpdate(){
     Buck.update();
 
     if(Thanos.getPollingStatus()){  
-        chamberPTapPoller.update();
-        thrustGaugePoller.update();
+        fuelTankPoller.update();
         HPTankPTapPoller.update();
     }
     
-    if(chamberPTapPoller.newdata)
+    if(fuelTankPoller.newdata)
     {
-        Thanos.updateChamberP(chamberPTapPoller.getVal());
-    }
-
-    if(thrustGaugePoller.newdata)
-    {
-        Thanos.updateThrust(thrustGaugePoller.getVal());
+        Thanos.updateFuelTankP(fuelTankPoller.getVal());
     }
 
     if(HPTankPTapPoller.newdata)

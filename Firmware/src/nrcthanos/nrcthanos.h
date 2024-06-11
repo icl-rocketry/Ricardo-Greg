@@ -1,14 +1,11 @@
 #pragma once
 
-#include "librrc/nrcremoteactuatorbase.h"
-#include "librrc/nrcremoteservo.h"
+#include <librrc/Remote/nrcremoteactuatorbase.h>
+#include <librrc/Remote/nrcremoteservo.h>
 
 #include <librnp/rnp_networkmanager.h>
 #include <librnp/rnp_packet.h>
 #include <libriccore/platform/esp32/ADC.h>
-
-#include <SiC43x.h>
-
 
 class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
 {
@@ -16,8 +13,6 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
     public:
 
         NRCThanos(RnpNetworkManager &networkmanager,
-                    uint8_t fuelServoGPIO,
-                    uint8_t fuelServoChannel,
                     uint8_t regServoGPIO,
                     uint8_t regServoChannel,
                     uint8_t overrideGPIO,
@@ -26,104 +21,45 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
                     ):
             NRCRemoteActuatorBase(networkmanager),
             _networkmanager(networkmanager),      
-            _fuelServoGPIO(fuelServoGPIO),
-            _fuelServoChannel(fuelServoChannel),
             _regServoGPIO(regServoGPIO),
             _regServoChannel(regServoChannel),
             _overrideGPIO(overrideGPIO),
             _pTankGPIO(pTankGPIO),
             _address(address),
-            fuelServo(fuelServoGPIO,fuelServoChannel,networkmanager,0,0,180,0,175),
             regServo(regServoGPIO,regServoChannel, networkmanager,0,0,180,10,140),
-            adc(10,ADC_CHANNEL_9)
+            adc(pTankGPIO)
             {};
 
         void setup();
         void update();
-        void updateThrust(float thrust);
-        void updateChamberP(float chamberP);
+        void updateFuelTankP(float fueltankP);
         void updateHPtankP(float HPtankP);
         bool getPollingStatus() { return _polling; };
 
         float get_lptankP();
-        uint16_t closedLoopAngle();
-        uint16_t feedforward();
+        float closedLoopAngle();
+        float feedforward();
 
-        uint16_t getFuelAngle() { return fuelServo.getAngle(); };
-        uint16_t getRegAngle() { return regServo.getAngle(); };
+        float getRegAngle() { return m_regAngleHiRes; };
+        float getP() {return m_P_angle;};
+        float getI() {return m_I_angle;};
         uint8_t getStatus(){return static_cast<uint8_t>(currentEngineState);};
 
-    protected: //WHAT DOES PUBLIC VS PROTECTED MEAN??
+    protected:
 
         RnpNetworkManager &_networkmanager;
-        const uint8_t _fuelServoGPIO;
-        const uint8_t _fuelServoChannel;
         const uint8_t _regServoGPIO;
         const uint8_t _regServoChannel;
         const uint8_t _overrideGPIO;
         const uint8_t _pTankGPIO;
         const uint8_t _address;
 
-        NRCRemoteServo fuelServo;
         NRCRemoteServo regServo;
 
         ADC adc;
 
         friend class NRCRemoteActuatorBase;
         friend class NRCRemoteBase;
-
-
-        // enum class EngineState : uint8_t
-        // {
-        //     Default = 0,
-        //     Ignition = 1,
-        //     ShutDown = 2,
-        //     NominalT = 3,
-        //     ThrottledT = 4,
-        //     // Fullbore = 4,
-        //     Debug = 5
-        // };
-
-        //void gotoWithSpeed(NRCRemoteServo &Servo, uint16_t demandAngle, float speed, float &prevAngle, float &currAngle, uint32_t &prevUpdateT);
-        //void gotoThrust(float target, float closespeed, float openspeed);
-        //void firePyro(uint32_t duration);
-
-        /*
-        // Ignition sequence timings from moment ignition command received
-        const uint64_t pyroFires = 0;
-        const uint64_t endOfIgnitionSeq = 500;
-
-        const uint16_t fuelServoPreAngle = 105;
-        const uint16_t regServoPreAngle = 70;
-
-        const uint64_t pressureUpdateTimeLim = 1000;
-        const uint32_t m_firstNominalTime = 4900;
-        const uint32_t m_throttledDownTime = 4400;
-        const uint32_t m_secondNominalTime = 3000;
-        const uint32_t m_cutoffTime = 14000;
-        const uint32_t m_calibrationTime = 65000;
-        const uint32_t m_oxDelay = 100;
-        const uint32_t m_oxFillCloseTime = 13000;
-        const uint32_t m_edgingDelay = 100;
-
-        uint8_t _ignitionCalls = 0;
-        const uint8_t _ignitionCommandMaxCalls = 2;
-        const uint8_t _ignitionCommandSendDelta = 50;
-        uint32_t _prevFiring = 0;
-
-        bool _polling = false;
-
-        bool oxFillClosed = false;
-        uint8_t closeOxFillCalls = 0;
-
-        //
-        uint8_t m_ingitionService = 12; //will correcting this spelling break something?
-        uint8_t m_ignitionNode = 107;
-
-        const uint8_t m_oxFillService = 10;
-        const uint8_t m_oxFillNode = 103;
-
-        */
 
         //-----------------------------------------------------------------------------------
         //---- State Machine Setup ----------------------------------------------------------
@@ -151,6 +87,9 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         void resetVars(){
             I_error = 0;
             Angle_integrator = 0;
+            m_I_angle = 0;
+            m_P_angle = 0;
+            m_regAngleHiRes = regClosedAngle;        
         };
 
         //Functions related to perfoming the state transitions
@@ -163,13 +102,12 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         //-----------------------------------------------------------------------------------
 
         //Variables used to hold the last time a network sensor measurement was updated
-        uint64_t lastTimeThrustUpdate;
-        uint64_t lastTimeChamberPUpdate;
+        uint64_t lastTimeFuelPUpdate;
         uint64_t lastTimeHPtankPUpdate;
 
         //Variables used to hold the current value of a network sensor measurement
         float _HPtankP;
-        float _chamberP;
+        float _fueltankP;
         float _thrust;
 
         uint64_t startTime; //Variable used to store the system time of test start in ms
@@ -244,4 +182,8 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         float I_error = 0; //Used to save the current integral value to be added to or subtracted from
         float Angle_integrator = 0; //Used to count up the cumulative open angle over time (estimate ullage change)
 
+        //Variables used for logging
+        float m_I_angle = 0; //Used to keep track of the current integrator contribution to final output
+        float m_P_angle = 0; //Used to keep track of the current proprotional contribution to final output
+        float m_regAngleHiRes = 0; //Used to keep track of the reg angle as a float instead of uint16_t.
 };
