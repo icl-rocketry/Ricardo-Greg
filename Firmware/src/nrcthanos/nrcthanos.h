@@ -43,6 +43,7 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         float getRegAngle() { return m_regAngleHiRes; };
         float getP() {return m_P_angle;};
         float getI() {return m_I_angle;};
+        float getFF() {return feedforward();};
         uint8_t getStatus(){return static_cast<uint8_t>(currentEngineState);};
 
     protected:
@@ -89,7 +90,7 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
             Angle_integrator = 0;
             m_I_angle = 0;
             m_P_angle = 0;
-            m_regAngleHiRes = regClosedAngle;        
+            m_regAngleHiRes = regClosedAngle;
         };
 
         //Functions related to perfoming the state transitions

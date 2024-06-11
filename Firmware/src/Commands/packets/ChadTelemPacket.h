@@ -13,7 +13,7 @@ class ChadTelemPacket : public RnpPacket{
         static constexpr auto getSerializer()
         {
             auto ret = RnpSerializer(
-                &ChadTelemPacket::servoVoltage,
+                &ChadTelemPacket::FF_angle,
                 &ChadTelemPacket::ox_tankP,
                 &ChadTelemPacket::regAngle,
                 &ChadTelemPacket::P_angle,
@@ -43,7 +43,7 @@ class ChadTelemPacket : public RnpPacket{
          */
         void serialize(std::vector<uint8_t>& buf) override;
 
-        float servoVoltage;
+        float FF_angle;
         float ox_tankP;
         float regAngle;
         float P_angle;
