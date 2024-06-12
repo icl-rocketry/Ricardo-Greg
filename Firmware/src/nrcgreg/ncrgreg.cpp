@@ -1,4 +1,4 @@
-#include "nrcthanos.h"
+#include "nrcgreg.h"
 #include <math.h>
 #include <Arduino.h>
 
@@ -8,7 +8,7 @@
 #include "Config/services_config.h"
 
 // Setup for the E-Reg Controller
-void NRCThanos::setup()
+void NRCGreg::setup()
 {
     regServo.setup();
 
@@ -17,10 +17,9 @@ void NRCThanos::setup()
     regServo.setAngleLims(regClosedAngle, regMaxOpenAngle);
 
     pinMode(_overrideGPIO, INPUT_PULLUP); // May still keep manual override, not sure
-    pinMode(_pTankGPIO, INPUT_PULLUP);    // Figure out how this GPIO pin is defined and where
 }
 
-void NRCThanos::update()
+void NRCGreg::update()
 {
     // Close valves if component disarmed
     if (this->_state.flagSet(LIBRRC::COMPONENT_STATUS_FLAGS::DISARMED))
@@ -35,24 +34,24 @@ void NRCThanos::update()
     }
     */
 
-    // Close valves after test duration
-    if ((millis() - startTime > testDuration) && _ignitionCalls > 0)
-    {
-        currentEngineState = EngineState::ShutDown;
-        _ignitionCalls = 0; // Flag used to ensure that system can exit the shutdown state
-    }
+    // // Close valves after test duration
+    // if ((millis() - startTime > testDuration) && _ignitionCalls > 0)
+    // {
+    //     currentEngineState = EngineState::ShutDown;
+    //     _ignitionCalls = 0; // Flag used to ensure that system can exit the shutdown state
+    // }
 
     adc.update();
     _value = static_cast<uint32_t>(currentEngineState);
 
     switch (currentEngineState)
     {
-        
+
     // Default (turn on) state
     case EngineState::Default:
     {
         regServo.goto_Angle(regClosedAngle);
-        _polling = false; // what does this do?
+        m_polling = false;
 
         if (this->_state.flagSet(LIBRRC::COMPONENT_STATUS_FLAGS::NOMINAL))
         {
@@ -64,7 +63,11 @@ void NRCThanos::update()
     case EngineState::Filling:
 
     {
-
+        if (!nominalRegOp())
+        {
+            currentEngineState = EngineState::ShutDown;
+            break;
+        }
         // Open reg valve to filling angle. Hold open until _lptankP reaches P_set and then close
         regServo.goto_Angle(regTankFillAngle);
 
@@ -86,10 +89,9 @@ void NRCThanos::update()
         // Start closed loop control of regulator valve
         regServo.goto_AngleHighRes(closedLoopAngle());
 
-        if (((millis() - startTime > testDuration)) || !nominalRegOp())
+        if (!nominalRegOp())
         {
             currentEngineState = EngineState::ShutDown;
-            // resetVars();
             break;
         }
 
@@ -103,7 +105,7 @@ void NRCThanos::update()
         m_I_angle = 0;
         m_P_angle = 0;
         m_regAngleHiRes = regClosedAngle;
-        _polling = false;
+        m_polling = false;
 
         break;
     }
@@ -116,7 +118,7 @@ void NRCThanos::update()
 }
 
 // Function to perform state machine transitions for the main operational system states
-void NRCThanos::execute_impl(packetptr_t packetptr)
+void NRCGreg::execute_impl(packetptr_t packetptr)
 {
     SimpleCommandPacket execute_command(*packetptr);
 
@@ -131,7 +133,7 @@ void NRCThanos::execute_impl(packetptr_t packetptr)
         currentEngineState = EngineState::Controlled; // Change 'Controlled' to 'Openloop' if doing an open loop test
         startTime = millis();
         _ignitionCalls = 1;
-        _polling = true;
+        m_polling = true;
         RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Test Start");
         break;
     }
@@ -140,7 +142,7 @@ void NRCThanos::execute_impl(packetptr_t packetptr)
         currentEngineState = EngineState::ShutDown;
         _ignitionCalls = 0;
         resetVars();
-        _polling = false;
+        m_polling = false;
         RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("ShutDown");
         break;
     }
@@ -150,7 +152,7 @@ void NRCThanos::execute_impl(packetptr_t packetptr)
         {
             break;
         }
-        _polling = false;
+        m_polling = false;
         currentEngineState = EngineState::Debug;
         RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Entered debug");
         break;
@@ -161,7 +163,7 @@ void NRCThanos::execute_impl(packetptr_t packetptr)
         {
             break;
         }
-        _polling = true;
+        m_polling = true;
         currentEngineState = EngineState::Filling;
         RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Pressurisation Start");
         break;
@@ -170,7 +172,7 @@ void NRCThanos::execute_impl(packetptr_t packetptr)
 }
 
 // Extra states for use during system debugging
-void NRCThanos::extendedCommandHandler_impl(const NRCPacket::NRC_COMMAND_ID commandID, packetptr_t packetptr)
+void NRCGreg::extendedCommandHandler_impl(const NRCPacket::NRC_COMMAND_ID commandID, packetptr_t packetptr)
 {
     SimpleCommandPacket command_packet(*packetptr);
     switch (static_cast<uint8_t>(commandID))
@@ -195,7 +197,7 @@ void NRCThanos::extendedCommandHandler_impl(const NRCPacket::NRC_COMMAND_ID comm
 }
 
 // Function to apply the closed loop PI controller with feed forward. FIGURE OUT HOW PRESSURES ARE MEASURED AND WHICH FUNCTION TO DO THAT IN
-float NRCThanos::closedLoopAngle()
+float NRCGreg::closedLoopAngle()
 {
     // float _HPtankP = _HPtankP; //Replace with actual measurement of the upstream tank pressure
     //  float P_HP_TANK = 200;
@@ -258,10 +260,10 @@ float NRCThanos::closedLoopAngle()
 }
 
 // Function to calculate the feedforward angle based on upstream pressure, set pressure and expected flowrate
-float NRCThanos::feedforward()
+float NRCGreg::feedforward()
 {
 
-    float FF_angle = ((C_2 * Q_water * P_set) / _HPtankP) + C_1;
+    float FF_angle = ((C_2 * Q_water * P_set) / m_HPtankP) + C_1;
     if (FF_angle > 55)
     {
         FF_angle = 55;
@@ -275,32 +277,35 @@ float NRCThanos::feedforward()
 }
 
 // Function to check if the reg system is running nominally or if an abort should be triggered
-bool NRCThanos::nominalRegOp()
+bool NRCGreg::nominalRegOp()
 {
     if (get_lptankP() > lowAbortP && get_lptankP() < highAbortP)
     {
         return true;
     }
-    else
+
+    if (m_fueltankP > lowAbortP && m_fueltankP < highAbortP)
     {
-        return false; // Trigger an abort
+        return true;
     }
+
+    return false;
 }
 
-void NRCThanos::updateHPtankP(float HPtankP)
+void NRCGreg::updateHPtankP(float HPtankP)
 {
     lastTimeHPtankPUpdate = millis();
-    _HPtankP = HPtankP;
+    m_HPtankP = HPtankP;
 }
 
-void NRCThanos::updateFuelTankP(float fueltankP)
+void NRCGreg::updateFuelTankP(float fueltankP)
 {
     lastTimeFuelPUpdate = millis();
-    _fueltankP = fueltankP;
+    m_fueltankP = fueltankP;
 }
 
 // Get the pressure reading from the GPIO pin and convert to [barA] (Absolute pressure)
-float NRCThanos::get_lptankP()
+float NRCGreg::get_lptankP()
 {
     float P = (P_gradient * (float)adc.getADC() + P_offset);
     return P;

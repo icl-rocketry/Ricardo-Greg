@@ -19,7 +19,7 @@ namespace Services{
      * 
      */
     enum class ID:uint8_t{
-        Thanos = 10,
+        Greg = 10,
         fuelTankPTap = 13,
         HPtankPTap = 20 //CHECK, THIS IS PROBABLY WRONG
     };

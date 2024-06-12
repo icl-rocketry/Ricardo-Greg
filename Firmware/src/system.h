@@ -11,7 +11,7 @@
 
 
 #include "SiC43x.h"
-#include "nrcthanos/nrcthanos.h"
+#include "nrcgreg/nrcgreg.h"
 
 #include "Commands/commands.h"
 
@@ -35,7 +35,7 @@ class System : public RicCoreSystem<System,SYSTEM_FLAG,Commands::ID>
         SensorPoller fuelTankPoller;
         SensorPoller HPTankPTapPoller;
 
-        NRCThanos Thanos;
+        NRCGreg Greg;
 
     // private:
 

@@ -7,12 +7,12 @@
 #include <librnp/rnp_packet.h>
 #include <libriccore/platform/esp32/ADC.h>
 
-class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
+class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
 {
 
     public:
 
-        NRCThanos(RnpNetworkManager &networkmanager,
+        NRCGreg(RnpNetworkManager &networkmanager,
                     uint8_t regServoGPIO,
                     uint8_t regServoChannel,
                     uint8_t overrideGPIO,
@@ -34,7 +34,7 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         void update();
         void updateFuelTankP(float fueltankP);
         void updateHPtankP(float HPtankP);
-        bool getPollingStatus() { return _polling; };
+        bool getPollingStatus() { return m_polling; };
 
         float get_lptankP();
         float closedLoopAngle();
@@ -90,7 +90,7 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
             Angle_integrator = 0;
             m_I_angle = 0;
             m_P_angle = 0;
-            m_regAngleHiRes = regClosedAngle;
+            m_regAngleHiRes = regServo.getAngle();
         };
 
         //Functions related to perfoming the state transitions
@@ -107,9 +107,8 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
         uint64_t lastTimeHPtankPUpdate;
 
         //Variables used to hold the current value of a network sensor measurement
-        float _HPtankP;
-        float _fueltankP;
-        float _thrust;
+        float m_HPtankP;
+        float m_fueltankP;
 
         uint64_t startTime; //Variable used to store the system time of test start in ms
         uint16_t _ignitionCalls = 0;
@@ -118,7 +117,7 @@ class NRCThanos : public NRCRemoteActuatorBase<NRCThanos>
 
         bool shutdown_called = false; //WHAT IS THIS USED FOR?
 
-        bool _polling = true;
+        bool m_polling = false;
 
         //-----------------------------------------------------------------------------------
         //---- Component Calibration Constants ----------------------------------------------

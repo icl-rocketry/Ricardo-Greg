@@ -28,8 +28,8 @@ HPtankPTap(2, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::HPta
 fuelTankPoller(50, &fuelTankPTap),
 HPTankPTapPoller(50, &HPtankPTap),
 
-//This is used in nrcthanos.h to define the pinouts using pinmap_config.h
-Thanos(networkmanager,PinMap::ServoPWM1,0,PinMap::EngineOverride,PinMap::LPTankP,networkmanager.getAddress())
+//This is used in nrcgreg.h to define the pinouts using pinmap_config.h
+Greg(networkmanager,PinMap::ServoPWM1,0,PinMap::EngineOverride,PinMap::LPTankP,networkmanager.getAddress())
 {};
 
 
@@ -49,7 +49,7 @@ void System::systemSetup(){
     Buck.setup();
     fuelTankPoller.setup();
     HPTankPTapPoller.setup(); //CHECK THIS IS CORRECT
-    Thanos.setup();
+    Greg.setup();
     canbus.setup();
     networkmanager.addInterface(&canbus);
 
@@ -57,11 +57,11 @@ void System::systemSetup(){
     networkmanager.setNoRouteAction(NOROUTE_ACTION::BROADCAST,{1,3});
 
     //Defining these so the methods following are less ugly
-    uint8_t thanosservice = static_cast<uint8_t>(Services::ID::Thanos);
+    uint8_t Gregservice = static_cast<uint8_t>(Services::ID::Greg);
     uint8_t fuelTankPTapservice = static_cast<uint8_t>(Services::ID::fuelTankPTap);
     uint8_t HPtankPTapservice = static_cast<uint8_t>(Services::ID::HPtankPTap);
 
-    networkmanager.registerService(thanosservice,Thanos.getThisNetworkCallback());
+    networkmanager.registerService(Gregservice,Greg.getThisNetworkCallback());
     networkmanager.registerService(fuelTankPTapservice,[this](packetptr_t packetptr){fuelTankPTap.networkCallback(std::move(packetptr));});
     networkmanager.registerService(HPtankPTapservice,[this](packetptr_t packetptr){HPtankPTap.networkCallback(std::move(packetptr));});
 };
@@ -69,20 +69,20 @@ void System::systemSetup(){
 void System::systemUpdate(){
     Buck.update();
 
-    if(Thanos.getPollingStatus()){  
+    if(Greg.getPollingStatus()){  
         fuelTankPoller.update();
         HPTankPTapPoller.update();
     }
     
     if(fuelTankPoller.newdata)
     {
-        Thanos.updateFuelTankP(fuelTankPoller.getVal());
+        Greg.updateFuelTankP(fuelTankPoller.getVal());
     }
 
     if(HPTankPTapPoller.newdata)
     {
-        Thanos.updateHPtankP(HPTankPTapPoller.getVal());
+        Greg.updateHPtankP(HPTankPTapPoller.getVal());
     }
 
-    Thanos.update();
+    Greg.update();
 };
