@@ -70,6 +70,7 @@ void NRCGreg::update()
         }
         // Open reg valve to filling angle. Hold open until _lptankP reaches P_set and then close
         regServo.goto_Angle(regTankFillAngle);
+        m_regAngleHiRes = regServo.getAngle();
 
         if (get_lptankP() >= (P_set + P_fill_add))
         {
@@ -182,6 +183,7 @@ void NRCGreg::extendedCommandHandler_impl(const NRCPacket::NRC_COMMAND_ID comman
         if (currentEngineState == EngineState::Debug)
         {
             regServo.goto_Angle(command_packet.arg);
+            m_regAngleHiRes = regServo.getAngle();
         }
         else
         {
@@ -232,7 +234,6 @@ float NRCGreg::closedLoopAngle()
     m_P_angle = K_p * error;
 
     float reg_angle = (float)(K_p * error + I_term + feedforward());
-    m_regAngleHiRes = reg_angle;
 
     // Set upper and lower bounds for the regualtor valve angle (figure out where these values should be defined from calibration)
     if (reg_angle > regMaxOpenAngle)
@@ -243,6 +244,8 @@ float NRCGreg::closedLoopAngle()
     {
         reg_angle = regMinOpenAngle; // Prevent reg closing
     }
+    
+    m_regAngleHiRes = reg_angle;
 
     Angle_integrator += (reg_angle - regMinOpenAngle) * dt; // Increment the angle integrator (proxy for ullage volume change over time)
 
