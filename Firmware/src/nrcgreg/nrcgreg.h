@@ -154,7 +154,7 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
 
         const uint16_t regServoOpenAngle = 46; //angle to open the reg valve to in the case of open loop control
 
-        const float P_set = 35; //LP tank set pressure [bar]
+        const float P_set = 37.5; //LP tank set pressure [bar]
         const float P_fill_add = 1.5; //Additional amount to add to the set pressure during filling to reach the target
         float Q_water = 0; //Expect volumetric flow rate of water [L/s]. Not necessarily constant
 
