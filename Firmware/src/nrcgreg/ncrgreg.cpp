@@ -42,7 +42,7 @@ void NRCGreg::update()
     // }
 
     adc.update();
-    _value = static_cast<uint32_t>(currentEngineState);
+    _value = static_cast<int32_t>(currentEngineState);
 
     switch (currentEngineState)
     {
@@ -51,6 +51,7 @@ void NRCGreg::update()
     case EngineState::Default:
     {
         regServo.goto_Angle(regClosedAngle);
+        m_regAngleHiRes = regClosedAngle;
         m_polling = false;
 
         if (this->_state.flagSet(LIBRRC::COMPONENT_STATUS_FLAGS::NOMINAL))
@@ -87,8 +88,10 @@ void NRCGreg::update()
     case EngineState::Controlled:
     {
 
+        Q_water = Q_interp();
+
         // Start closed loop control of regulator valve
-        regServo.goto_AngleHighRes(closedLoopAngle());
+        regServo.goto_Angle(closedLoopAngle());
 
         if (!nominalRegOp())
         {
@@ -199,7 +202,7 @@ void NRCGreg::extendedCommandHandler_impl(const NRCPacket::NRC_COMMAND_ID comman
 }
 
 // Function to apply the closed loop PI controller with feed forward. FIGURE OUT HOW PRESSURES ARE MEASURED AND WHICH FUNCTION TO DO THAT IN
-float NRCGreg::closedLoopAngle()
+uint16_t NRCGreg::closedLoopAngle()
 {
     // float _HPtankP = _HPtankP; //Replace with actual measurement of the upstream tank pressure
     //  float P_HP_TANK = 200;
@@ -233,7 +236,7 @@ float NRCGreg::closedLoopAngle()
     float K_p = K_p_0 + K_p_alpha * Angle_integrator;
     m_P_angle = K_p * error;
 
-    float reg_angle = (float)(K_p * error + I_term + feedforward());
+    uint16_t reg_angle = (uint16_t)(K_p * error + I_term + feedforward());
 
     // Set upper and lower bounds for the regualtor valve angle (figure out where these values should be defined from calibration)
     if (reg_angle > regMaxOpenAngle)
@@ -282,12 +285,7 @@ float NRCGreg::feedforward()
 // Function to check if the reg system is running nominally or if an abort should be triggered
 bool NRCGreg::nominalRegOp()
 {
-    if (get_lptankP() > lowAbortP && get_lptankP() < highAbortP)
-    {
-        return true;
-    }
-
-    if (m_fueltankP > lowAbortP && m_fueltankP < highAbortP)
+    if (get_lptankP() > lowAbortP && get_lptankP() < highAbortP && m_fueltankP > lowAbortP && m_fueltankP < highAbortP)
     {
         return true;
     }
@@ -312,4 +310,38 @@ float NRCGreg::get_lptankP()
 {
     float P = (P_gradient * (float)adc.getADC() + P_offset);
     return P;
+}
+
+float NRCGreg::Q_interp(){
+    uint32_t currTime = millis() - startTime;
+
+    //some stupid lookup, not my proudest work
+    int i = 0;
+    for (i = 0; i < m_testTime.size(); ++i){ 
+        if (currTime > m_testTime[i]){
+            continue;
+        }
+        if (currTime < m_testTime[i]){
+            break;
+        }
+        else{
+            break;
+        }
+    }
+
+    if (i > m_testTime.size()-1){
+        float Q = m_FlowRate[i-1];
+        // RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Q1: " + std::to_string(Q));
+        return Q;
+    }
+    i -= 1;
+    
+    //find how far we are into the next timestep
+    float dt = (float)(currTime - m_testTime[i])/(float)(m_testTime[i+1]-m_testTime[i]);
+
+    float Q = dt * (float)(m_FlowRate[i+1] - m_FlowRate[i]) + (float)m_FlowRate[i];
+
+    // RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Q2: " + std::to_string(Q));
+
+    return Q;
 }

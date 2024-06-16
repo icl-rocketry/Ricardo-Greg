@@ -37,7 +37,7 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         bool getPollingStatus() { return m_polling; };
 
         float get_lptankP();
-        float closedLoopAngle();
+        uint16_t closedLoopAngle();
         float feedforward();
 
         float getRegAngle() { return m_regAngleHiRes; };
@@ -93,6 +93,8 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
             m_regAngleHiRes = regServo.getAngle();
         };
 
+        float Q_interp();
+
         //Functions related to perfoming the state transitions
         void execute_impl(packetptr_t packetptr);
         void override_impl(packetptr_t packetptr);
@@ -130,8 +132,8 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         //Regulator valve calibration angles
         const uint16_t regClosedAngle = 0; //CALIBRATED
         const uint16_t regMinOpenAngle = 40; //CALIBRATED
-        const uint16_t regMaxOpenAngle = 70; //CALIBRATED (Safeguard to prevent too high flow rates)
-        const uint16_t regTankFillAngle = 45; //CALIBRATED
+        const uint16_t regMaxOpenAngle = 85; //CALIBRATED (Safeguard to prevent too high flow rates)
+        const uint16_t regTankFillAngle = 51; //CALIBRATED
 
         //Fuel valve calibration angles
         const uint16_t fuelClosedAngle = 0; //CALIBRATED
@@ -152,9 +154,9 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
 
         const uint16_t regServoOpenAngle = 46; //angle to open the reg valve to in the case of open loop control
 
-        const float P_set = 30; //LP tank set pressure [bar]
+        const float P_set = 35; //LP tank set pressure [bar]
         const float P_fill_add = 1.5; //Additional amount to add to the set pressure during filling to reach the target
-        const float Q_water = 0.8; //Expect volumetric flow rate of water [L/s]. Not necessarily constant
+        float Q_water = 0; //Expect volumetric flow rate of water [L/s]. Not necessarily constant
 
         //-----------------------------------------------------------------------------------
         //---- Controller Parameters --------------------------------------------------------
@@ -168,7 +170,7 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         const float K_p_0 = 2; //Initial Proportional controller gain
         const float K_p_alpha = 0.015; //Gain increase proportional constant
         const float K_i = 1.5; //Integral controller gain
-        const uint16_t I_lim = 5; //Limit for integral component to prevent integral windup
+        const uint16_t I_lim = 8; //Limit for integral component to prevent integral windup
 
         //Feed forward calculation constants
         const uint32_t FF_Precede = 0; //Amount of time the e-reg opening precedes the fuel valve opening in ms
@@ -186,4 +188,8 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         float m_I_angle = 0; //Used to keep track of the current integrator contribution to final output
         float m_P_angle = 0; //Used to keep track of the current proprotional contribution to final output
         float m_regAngleHiRes = 0; //Used to keep track of the reg angle as a float instead of uint16_t.
+
+        //vectors to define throttle profile from ignition
+        std::vector<float> m_FlowRate = {0.5,2};
+        std::vector<uint32_t> m_testTime = {0,1000};
 };
