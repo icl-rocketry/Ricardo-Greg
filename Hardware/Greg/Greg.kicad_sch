@@ -5668,7 +5668,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" " TMK107BBJ106MA-T"
+		(property "MPN" "TMK107BBJ106MA-T"
 			(at 119.634 66.802 0)
 			(effects
 				(font
@@ -6768,7 +6768,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" " GRM155R61C225KE11D"
+		(property "MPN" " GRM155R61E225ME15D"
 			(at 103.124 42.672 0)
 			(effects
 				(font
@@ -8747,7 +8747,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "C1005X6S1C105KT000E"
+		(property "MPN" "CL05X105KA5NQNC"
 			(at 52.324 37.592 0)
 			(effects
 				(font
