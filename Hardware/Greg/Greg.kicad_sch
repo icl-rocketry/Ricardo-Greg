@@ -4781,24 +4781,23 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(fields_autoplaced yes)
 		(uuid "089c72cc-1029-4b0f-8879-61dfbdc893e7")
 		(property "Reference" "R6"
-			(at 98.044 29.337 0)
+			(at 93.98 27.178 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
-				(justify right)
+				(justify left)
 			)
 		)
-		(property "Value" "50k"
-			(at 98.044 26.797 0)
+		(property "Value" "49.9k"
+			(at 93.98 29.6023 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
-				(justify right)
+				(justify left)
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
@@ -5357,7 +5356,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "150k"
+		(property "Value" "152k"
 			(at 102.0826 36.2641 0)
 			(effects
 				(font
