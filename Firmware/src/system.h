@@ -2,6 +2,7 @@
 
 #include <libriccore/riccoresystem.h>
 #include <libriccore/networkinterfaces/can/canbus.h>
+#include <libriccore/platform/esp32/ADC.h>
 #include <librrc/Interface/networksensor.h>
 #include <librrc/Helpers/sensorpoller.h>
 
@@ -35,9 +36,12 @@ class System : public RicCoreSystem<System,SYSTEM_FLAG,Commands::ID>
         SensorPoller fuelTankPoller;
         SensorPoller HPTankPTapPoller;
 
+        NRCRemotePTap m_OxPT;
         NRCGreg Greg;
 
-    // private:
+    private:
+        ADC m_OxPTADC;
+        
 
         
 

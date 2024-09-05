@@ -11,7 +11,7 @@
 
 #include "commands.h"
 
-#include "packets/ChadTelemPacket.h"
+#include "packets/GregTelemPacket.h"
 
 #include <librnp/rnp_packet.h>
 #include <libriccore/commands/commandhandler.h>
@@ -39,27 +39,27 @@ void Commands::FreeRamCommand(System& sm, const RnpPacketSerialized& packet)
 	
 }
 
-void Commands::ChadTelemCommand(System& sm, const RnpPacketSerialized& packet)
+void Commands::GregTelemCommand(System& sm, const RnpPacketSerialized& packet)
 {	
 	SimpleCommandPacket commandpacket(packet);
 
-	ChadTelemPacket chadtelem;
+	GregTelemPacket gregtelem;
 
-	chadtelem.header.type = static_cast<uint8_t>(103);
-	chadtelem.header.source = sm.networkmanager.getAddress();
-	chadtelem.header.source_service = sm.commandhandler.getServiceID();
-	chadtelem.header.destination = commandpacket.header.source;
-	chadtelem.header.destination_service = commandpacket.header.source_service;
-	chadtelem.header.uid = commandpacket.header.uid; 
-	chadtelem.FF_angle = sm.Greg.getFF();
-	chadtelem.regAngle = sm.Greg.getRegAngle(); //Changed name from ox to reg
-	chadtelem.ox_tankP = sm.Greg.get_lptankP();
-	chadtelem.P_angle = sm.Greg.getP();
-	chadtelem.I_angle = sm.Greg.getI();
-	chadtelem.system_status = sm.systemstatus.getStatus();
-	chadtelem.system_time = millis();
+	gregtelem.header.type = static_cast<uint8_t>(115);
+	gregtelem.header.source = sm.networkmanager.getAddress();
+	gregtelem.header.source_service = sm.commandhandler.getServiceID();
+	gregtelem.header.destination = commandpacket.header.source;
+	gregtelem.header.destination_service = commandpacket.header.source_service;
+	gregtelem.header.uid = commandpacket.header.uid; 
+	gregtelem.FF_angle = sm.Greg.feedforward();
+	gregtelem.regAngle = sm.Greg.getRegAngle();
+	gregtelem.ox_tankP = sm.Greg.getOxTankP();
+	gregtelem.P_angle = sm.Greg.getPAngle();
+	gregtelem.Kp = sm.Greg.Kp();
+	gregtelem.system_status = sm.systemstatus.getStatus();
+	gregtelem.system_time = millis();
 	
-	sm.networkmanager.sendPacket(chadtelem);
+	sm.networkmanager.sendPacket(gregtelem);
 	
 }
 

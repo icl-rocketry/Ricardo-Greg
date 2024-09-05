@@ -6,169 +6,111 @@
 #include <libriccore/riccorelogging.h>
 
 #include "Config/services_config.h"
+#include "default.h"
+#include "pressurise.h"
+#include "shutdown.h"
+#include "controlled.h"
 
 // Setup for the E-Reg Controller
 void NRCGreg::setup()
 {
-    regServo.setup();
+    m_regServo.setup();
+    m_GregMachine.initalize(std::make_unique<Default>(m_DefaultStateParams));
+}
 
-    adc.setup();
+float NRCGreg::feedforward()
+{
+    float FF = m_FF_0 + m_FF_Alpha / m_PressTankPoller.getVal();
+    return std::max(std::min(FF, m_FF_max), m_FF_min); // Set bounds on FF angle before returning.
+}
 
-    regServo.setAngleLims(regClosedAngle, regMaxOpenAngle);
+float NRCGreg::Kp()
+{
+    float Kp = m_Kp_0 + m_Kp_Beta / m_PressTankPoller.getVal();
 
-    pinMode(_overrideGPIO, INPUT_PULLUP); // May still keep manual override, not sure
+    return std::max(std::min(Kp, m_Kp_max), m_Kp_min); // Set bounds on Kp before returning.
+}
+
+uint32_t NRCGreg::nextAngle()
+{
+
+    float error = m_P_setpoint - getOxTankP(); // Calculate error in tank pressure
+
+    m_P_angle = (float)Kp() * (float)error;
+
+    uint32_t reg_angle = static_cast<uint32_t>(m_P_angle + feedforward());
+
+    return std::max(std::min(reg_angle, m_regMaxOpenAngle), m_regMinOpenAngle); // Set bounds on angle during operation.
 }
 
 void NRCGreg::update()
-{
-    // Close valves if component disarmed
-    if (this->_state.flagSet(LIBRRC::COMPONENT_STATUS_FLAGS::DISARMED))
+{   
+    _value = m_GregStatus.getStatus();
+    m_GregMachine.update();
+
+    if (this->_state.flagSet(LIBRRC::COMPONENT_STATUS_FLAGS::DISARMED) && !m_GregStatus.flagSet(GREG_FLAGS::STATE_DEFAULT))
     {
-        currentEngineState = EngineState::Default;
+        m_GregMachine.changeState(std::make_unique<Default>(m_DefaultStateParams)); // Return to defualt if the engine is disarmed
     }
 
-    /*
-    if (digitalRead(_overrideGPIO) == 1)
+    if (m_GregStatus.flagSetOr(GREG_FLAGS::STATE_CONTROLLED, GREG_FLAGS::STATE_PRESSURISE)) //Only poll in the relevant states
     {
-        currentEngineState = EngineState::ShutDown;
-    }
-    */
-
-    // // Close valves after test duration
-    // if ((millis() - startTime > testDuration) && _ignitionCalls > 0)
-    // {
-    //     currentEngineState = EngineState::ShutDown;
-    //     _ignitionCalls = 0; // Flag used to ensure that system can exit the shutdown state
-    // }
-
-    adc.update();
-    _value = static_cast<int32_t>(currentEngineState);
-
-    switch (currentEngineState)
-    {
-
-    // Default (turn on) state
-    case EngineState::Default:
-    {
-        regServo.goto_Angle(regClosedAngle);
-        m_regAngleHiRes = regClosedAngle;
-        m_polling = false;
-
-        if (this->_state.flagSet(LIBRRC::COMPONENT_STATUS_FLAGS::NOMINAL))
+        try{m_PressTankPoller.update();}
+        catch (const std::exception &e)
         {
-        }
-        break;
-    }
-
-    // Tank pressurisation state
-    case EngineState::Filling:
-
-    {
-        if (!nominalRegOp())
-        {
-            currentEngineState = EngineState::ShutDown;
-            break;
-        }
-        // Open reg valve to filling angle. Hold open until _lptankP reaches P_set and then close
-        regServo.goto_Angle(regTankFillAngle);
-        m_regAngleHiRes = regServo.getAngle();
-
-        if (get_lptankP() >= (P_set + P_fill_add))
-        {
-            regServo.goto_Angle(regClosedAngle);
-            currentEngineState = EngineState::Default;
-            // resetVars();
-            break;
+            
+            return;
         }
 
-        break;
-    }
-
-    // Closed loop control (nominal) state
-    case EngineState::Controlled:
-    {
-
-        Q_water = Q_interp();
-
-        // Start closed loop control of regulator valve
-        regServo.goto_Angle(closedLoopAngle());
-
-        if (!nominalRegOp())
+        try{m_FuelTankPoller.update();}
+        catch (const std::exception &e)
         {
-            currentEngineState = EngineState::ShutDown;
-            break;
+            return;
         }
-
-        break;
-    }
-
-    // System shutdown state (close both valves)
-    case EngineState::ShutDown:
-    {
-        regServo.goto_Angle(regClosedAngle);
-        m_I_angle = 0;
-        m_P_angle = 0;
-        m_regAngleHiRes = regClosedAngle;
-        m_polling = false;
-
-        break;
-    }
-
-    default:
-    {
-        break;
-    }
     }
 }
 
-// Function to perform state machine transitions for the main operational system states
 void NRCGreg::execute_impl(packetptr_t packetptr)
 {
     SimpleCommandPacket execute_command(*packetptr);
 
     switch (execute_command.arg)
     {
-    case 1:
+    case 1: // Controlled command
     {
-        if (currentEngineState != EngineState::Default)
+        if (!m_GregStatus.flagSet(GREG_FLAGS::STATE_DEFAULT)) // Can only go to the controlled state from default.
         {
             break;
         }
-        currentEngineState = EngineState::Controlled; // Change 'Controlled' to 'Openloop' if doing an open loop test
-        startTime = millis();
-        _ignitionCalls = 1;
-        m_polling = true;
+        m_GregMachine.changeState(std::make_unique<Controlled>(m_DefaultStateParams, *this)); // Can always shut down
         RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Test Start");
         break;
     }
-    case 2:
+    case 2: // Shutdown command
     {
-        currentEngineState = EngineState::ShutDown;
-        _ignitionCalls = 0;
-        resetVars();
-        m_polling = false;
+        m_GregMachine.changeState(std::make_unique<Shutdown>(m_DefaultStateParams)); // Can always shut down
         RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("ShutDown");
         break;
     }
-    case 3:
+    case 3: // Debug command
     {
-        if (currentEngineState != EngineState::Default)
+        if (!m_GregStatus.flagSet(GREG_FLAGS::STATE_DEFAULT)) // Can only pressurise from default.
         {
             break;
         }
-        m_polling = false;
-        currentEngineState = EngineState::Debug;
+        // DEBUG COMMAND
+        //  currentEngineState = EngineState::Debug;
         RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Entered debug");
         break;
     }
-    case 4:
+    case 4: // Pressurise command
     {
-        if (currentEngineState != EngineState::Default)
+        if (!m_GregStatus.flagSet(GREG_FLAGS::STATE_DEFAULT)) // Can only pressurise from default.
         {
             break;
         }
-        m_polling = true;
-        currentEngineState = EngineState::Filling;
+
+        m_GregMachine.changeState(std::make_unique<Pressurise>(m_DefaultStateParams, *this));
         RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Pressurisation Start");
         break;
     }
@@ -183,15 +125,15 @@ void NRCGreg::extendedCommandHandler_impl(const NRCPacket::NRC_COMMAND_ID comman
     {
     case 6:
     {
-        if (currentEngineState == EngineState::Debug)
-        {
-            regServo.goto_Angle(command_packet.arg);
-            m_regAngleHiRes = regServo.getAngle();
-        }
-        else
-        {
-            break;
-        }
+        // if (currentEngineState == EngineState::Debug)
+        // {
+        //     m_regAdapter.goto_Angle(command_packet.arg);
+        //     m_regAngleHiRes = regServo.getAngle();
+        // }
+        // else
+        // {
+        //     break;
+        // }
     }
     default:
     {
@@ -199,149 +141,4 @@ void NRCGreg::extendedCommandHandler_impl(const NRCPacket::NRC_COMMAND_ID comman
         break;
     }
     }
-}
-
-// Function to apply the closed loop PI controller with feed forward. FIGURE OUT HOW PRESSURES ARE MEASURED AND WHICH FUNCTION TO DO THAT IN
-uint16_t NRCGreg::closedLoopAngle()
-{
-    // float _HPtankP = _HPtankP; //Replace with actual measurement of the upstream tank pressure
-    //  float P_HP_TANK = 200;
-
-    float error = P_set - get_lptankP();   // Calculate error in tank pressure
-    float dt = (millis() - t_prev) / 1000; // Calculate the time since the last
-    t_prev = millis();
-
-    if (error / prev_error < 0) // Detect for error zero crossings (error changing from +ve to -ve or vice versa)
-    {
-        I_error = 0; // Reset the integrator to zero
-    }
-
-    prev_error = error;
-
-    I_error = I_error + error * dt; // Increment the integrator
-
-    // Set upper and lower bounds to the integral term to prevent windup
-    if (I_error > I_lim)
-    {
-        I_error = I_lim;
-    }
-    else if (I_error < -I_lim)
-    {
-        I_error = -I_lim;
-    }
-
-    float I_term = K_i * I_error;
-    m_I_angle = I_term;
-
-    float K_p = K_p_0 + K_p_alpha * Angle_integrator;
-    m_P_angle = K_p * error;
-
-    uint16_t reg_angle = (uint16_t)(K_p * error + I_term + feedforward());
-
-    // Set upper and lower bounds for the regualtor valve angle (figure out where these values should be defined from calibration)
-    if (reg_angle > regMaxOpenAngle)
-    {
-        reg_angle = regMaxOpenAngle; // Prevent reg opening too much
-    }
-    else if (reg_angle < regMinOpenAngle)
-    {
-        reg_angle = regMinOpenAngle; // Prevent reg closing
-    }
-    
-    m_regAngleHiRes = reg_angle;
-
-    Angle_integrator += (reg_angle - regMinOpenAngle) * dt; // Increment the angle integrator (proxy for ullage volume change over time)
-
-    // Constrain the angle integrator and prevent it becoming negative (shouldn't be possible)
-    if (Angle_integrator > 150)
-    {
-        Angle_integrator = 150;
-    }
-    else if (Angle_integrator < 0)
-    {
-        Angle_integrator = 0;
-    }
-
-    return reg_angle;
-}
-
-// Function to calculate the feedforward angle based on upstream pressure, set pressure and expected flowrate
-float NRCGreg::feedforward()
-{
-
-    float FF_angle = ((C_2 * Q_water * P_set) / m_HPtankP) + C_1;
-    if (FF_angle > 55)
-    {
-        FF_angle = 55;
-    }
-    else if (FF_angle < C_1)
-    {
-        FF_angle = C_1;
-    }
-
-    return FF_angle;
-}
-
-// Function to check if the reg system is running nominally or if an abort should be triggered
-bool NRCGreg::nominalRegOp()
-{
-    if (get_lptankP() > lowAbortP && get_lptankP() < highAbortP && m_fueltankP > lowAbortP && m_fueltankP < highAbortP)
-    {
-        return true;
-    }
-
-    return false;
-}
-
-void NRCGreg::updateHPtankP(float HPtankP)
-{
-    lastTimeHPtankPUpdate = millis();
-    m_HPtankP = HPtankP;
-}
-
-void NRCGreg::updateFuelTankP(float fueltankP)
-{
-    lastTimeFuelPUpdate = millis();
-    m_fueltankP = fueltankP;
-}
-
-// Get the pressure reading from the GPIO pin and convert to [barA] (Absolute pressure)
-float NRCGreg::get_lptankP()
-{
-    float P = (P_gradient * (float)adc.getADC() + P_offset);
-    return P;
-}
-
-float NRCGreg::Q_interp(){
-    uint32_t currTime = millis() - startTime;
-
-    //some stupid lookup, not my proudest work
-    int i = 0;
-    for (i = 0; i < m_testTime.size(); ++i){ 
-        if (currTime > m_testTime[i]){
-            continue;
-        }
-        if (currTime < m_testTime[i]){
-            break;
-        }
-        else{
-            break;
-        }
-    }
-
-    if (i > m_testTime.size()-1){
-        float Q = m_FlowRate[i-1];
-        // RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Q1: " + std::to_string(Q));
-        return Q;
-    }
-    i -= 1;
-    
-    //find how far we are into the next timestep
-    float dt = (float)(currTime - m_testTime[i])/(float)(m_testTime[i+1]-m_testTime[i]);
-
-    float Q = dt * (float)(m_FlowRate[i+1] - m_FlowRate[i]) + (float)m_FlowRate[i];
-
-    // RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Q2: " + std::to_string(Q));
-
-    return Q;
 }

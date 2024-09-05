@@ -7,34 +7,34 @@
 
 //shamelessly copied from pickle rick's telemetry packet
 
-class ChadTelemPacket : public RnpPacket{
+class GregTelemPacket : public RnpPacket{
     private:
     //serializer framework
         static constexpr auto getSerializer()
         {
             auto ret = RnpSerializer(
-                &ChadTelemPacket::FF_angle,
-                &ChadTelemPacket::ox_tankP,
-                &ChadTelemPacket::regAngle,
-                &ChadTelemPacket::P_angle,
-                &ChadTelemPacket::I_angle,
-                &ChadTelemPacket::system_status,
-                &ChadTelemPacket::system_time
+                &GregTelemPacket::FF_angle,
+                &GregTelemPacket::ox_tankP,
+                &GregTelemPacket::regAngle,
+                &GregTelemPacket::P_angle,
+                &GregTelemPacket::Kp,
+                &GregTelemPacket::system_status,
+                &GregTelemPacket::system_time
             );
 
             return ret;
         }
         
     public:
-        ~ChadTelemPacket();
+        ~GregTelemPacket();
 
-        ChadTelemPacket();
+        GregTelemPacket();
         /**
          * @brief Deserialize Telemetry Packet
          * 
          * @param data 
          */
-        ChadTelemPacket(const RnpPacketSerialized& packet);
+        GregTelemPacket(const RnpPacketSerialized& packet);
 
         /**
          * @brief Serialize Telemetry Packet
@@ -45,9 +45,9 @@ class ChadTelemPacket : public RnpPacket{
 
         float FF_angle;
         float ox_tankP;
-        float regAngle;
+        uint32_t regAngle;
         float P_angle;
-        float I_angle;
+        float Kp;
         uint32_t system_status;
         uint64_t system_time;
 

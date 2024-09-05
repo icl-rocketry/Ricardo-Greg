@@ -27,9 +27,9 @@ fuelTankPTap(1, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::fu
 HPtankPTap(2, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::HPtankPTap), static_cast<uint8_t>(Services::ID::HPtankPTap), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
 fuelTankPoller(50, &fuelTankPTap),
 HPTankPTapPoller(50, &HPtankPTap),
-
-//This is used in nrcgreg.h to define the pinouts using pinmap_config.h
-Greg(networkmanager,PinMap::ServoPWM1,0,PinMap::EngineOverride,PinMap::LPTankP,networkmanager.getAddress())
+m_OxPT(networkmanager,0),
+Greg(networkmanager,PinMap::ServoPWM0,0,m_OxPT,HPTankPTapPoller,fuelTankPoller),
+m_OxPTADC(PinMap::OxPTADCPin)
 {};
 
 
@@ -51,6 +51,8 @@ void System::systemSetup(){
     HPTankPTapPoller.setup(); //CHECK THIS IS CORRECT
     Greg.setup();
     canbus.setup();
+    m_OxPTADC.setAttenuation(ADC_ATTEN_DB_2_5); //0 -> 1250mV input range
+    m_OxPTADC.setup();
     networkmanager.addInterface(&canbus);
 
     networkmanager.setNodeType(NODETYPE::HUB);
@@ -60,29 +62,17 @@ void System::systemSetup(){
     uint8_t Gregservice = static_cast<uint8_t>(Services::ID::Greg);
     uint8_t fuelTankPTapservice = static_cast<uint8_t>(Services::ID::fuelTankPTap);
     uint8_t HPtankPTapservice = static_cast<uint8_t>(Services::ID::HPtankPTap);
+    uint8_t OxTankPTService = static_cast<uint8_t>(Services::ID::OxTankPT);
 
     networkmanager.registerService(Gregservice,Greg.getThisNetworkCallback());
     networkmanager.registerService(fuelTankPTapservice,[this](packetptr_t packetptr){fuelTankPTap.networkCallback(std::move(packetptr));});
     networkmanager.registerService(HPtankPTapservice,[this](packetptr_t packetptr){HPtankPTap.networkCallback(std::move(packetptr));});
+    networkmanager.registerService(OxTankPTService,m_OxPT.getThisNetworkCallback());
 };
 
 void System::systemUpdate(){
     Buck.update();
-
-    if(Greg.getPollingStatus()){  
-        fuelTankPoller.update();
-        HPTankPTapPoller.update();
-    }
-    
-    if(fuelTankPoller.newdata)
-    {
-        Greg.updateFuelTankP(fuelTankPoller.getVal());
-    }
-
-    if(HPTankPTapPoller.newdata)
-    {
-        Greg.updateHPtankP(HPTankPTapPoller.getVal());
-    }
-
     Greg.update();
+    m_OxPTADC.update();
+    m_OxPT.update(static_cast<int32_t>(m_OxPTADC.getADC()));
 };
