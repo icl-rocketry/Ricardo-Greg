@@ -1,4 +1,4 @@
-#include "shutdown.h"
+#include "debug.h"
 
 #include <memory>
 
@@ -14,27 +14,26 @@
 #include "system.h"
 
 
-Shutdown::Shutdown(Greg::DefaultStateInit& DefaultInitParams):
-State(GREG_FLAGS::STATE_SHUTDOWN,DefaultInitParams.gregstatus),
+Debug::Debug(Greg::DefaultStateInit& DefaultInitParams):
+State(GREG_FLAGS::STATE_DEBUG,DefaultInitParams.gregstatus),
 m_regAdapter(DefaultInitParams.regAdapter),
 m_regClosedAngle(DefaultInitParams.regClosedAngle)
 {};
 
-void Shutdown::initialize()
+void Debug::initialize()
 {
     Types::EREGTypes::State_t::initialize(); // call parent initialize first!
 
     m_regAdapter.arm(0); //Arm the servo
-    m_regAdapter.execute(m_regClosedAngle); //Drive the E-Reg to its closed position.
+};
+
+Types::EREGTypes::State_ptr_t Debug::update()
+{
+    return nullptr; //Remain in debug state indefinitely. The transition away from debug is accessed through the actuator command handler.
+};
+
+void Debug::exit()
+{
     m_regAdapter.disarm(); //No reason to keep actuator armed
-};
-
-Types::EREGTypes::State_ptr_t Shutdown::update()
-{
-    return nullptr; //Remain in default state indefinitely. The transition away from default is accessed through the actuator command handler.
-};
-
-void Shutdown::exit()
-{
     Types::EREGTypes::State_t::exit(); // call parent exit last!
 };

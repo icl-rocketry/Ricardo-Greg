@@ -23,13 +23,15 @@ System::System():
 RicCoreSystem(Commands::command_map,Commands::defaultEnabledCommands,Serial),
 Buck(PinMap::BuckPGOOD, PinMap::BuckEN, 1, 1, PinMap::BuckOutputV, 1500, 470),
 canbus(systemstatus,PinMap::TxCan,PinMap::RxCan,3),
-fuelTankPTap(1, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::fuelTankPTap), static_cast<uint8_t>(Services::ID::fuelTankPTap), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
-HPtankPTap(2, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::HPtankPTap), static_cast<uint8_t>(Services::ID::HPtankPTap), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
-fuelTankPoller(50, &fuelTankPTap),
+FuelTankPTap(1, GeneralConfig::KermitAddr, static_cast<uint8_t>(Services::ID::FuelTankPTRemote), static_cast<uint8_t>(Services::ID::FuelTankPTRemote), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
+OxTankPTap(1, GeneralConfig::StarkAddr, static_cast<uint8_t>(Services::ID::OxTankPT), static_cast<uint8_t>(Services::ID::OxTankPT), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
+HPtankPTap(2, GeneralConfig::KermitAddr, static_cast<uint8_t>(Services::ID::HPTankPT), static_cast<uint8_t>(Services::ID::HPTankPT), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
+FuelTankPoller(50, &FuelTankPTap),
+OxTankPoller(50, &OxTankPTap),
 HPTankPTapPoller(50, &HPtankPTap),
-m_OxPT(networkmanager,0),
-Greg(networkmanager,PinMap::ServoPWM0,0,m_OxPT,HPTankPTapPoller,fuelTankPoller),
-m_OxPTADC(PinMap::OxPTADCPin)
+m_FuelPTLocal(networkmanager,0),
+Greg(networkmanager,PinMap::ServoPWM0,0,m_FuelPTLocal,HPTankPTapPoller,OxTankPoller,FuelTankPoller),
+m_FuelPTLocalADC(PinMap::OxPTADCPin)
 {};
 
 
@@ -47,12 +49,15 @@ void System::systemSetup(){
     //any other setup goes here
     
     Buck.setup();
-    fuelTankPoller.setup();
-    HPTankPTapPoller.setup(); //CHECK THIS IS CORRECT
+    FuelTankPoller.setup();
+    OxTankPoller.setup();
+    HPTankPTapPoller.setup();
     Greg.setup();
     canbus.setup();
-    m_OxPTADC.setAttenuation(ADC_ATTEN_DB_2_5); //0 -> 1250mV input range
-    m_OxPTADC.setup();
+    m_FuelPTLocalADC.setAttenuation(ADC_ATTEN_DB_2_5); //0 -> 1250mV input range
+    m_FuelPTLocalADC.setup();
+    m_FuelPTLocal.setup();
+    
     networkmanager.addInterface(&canbus);
 
     networkmanager.setNodeType(NODETYPE::HUB);
@@ -60,19 +65,22 @@ void System::systemSetup(){
 
     //Defining these so the methods following are less ugly
     uint8_t Gregservice = static_cast<uint8_t>(Services::ID::Greg);
-    uint8_t fuelTankPTapservice = static_cast<uint8_t>(Services::ID::fuelTankPTap);
-    uint8_t HPtankPTapservice = static_cast<uint8_t>(Services::ID::HPtankPTap);
+    uint8_t FuelTankPTapremoteservice = static_cast<uint8_t>(Services::ID::FuelTankPTRemote);
+    uint8_t FuelTankPTaplocalservice = static_cast<uint8_t>(Services::ID::FuelTankPTLocal);
+    uint8_t HPtankPTapservice = static_cast<uint8_t>(Services::ID::HPTankPT);
     uint8_t OxTankPTService = static_cast<uint8_t>(Services::ID::OxTankPT);
 
     networkmanager.registerService(Gregservice,Greg.getThisNetworkCallback());
-    networkmanager.registerService(fuelTankPTapservice,[this](packetptr_t packetptr){fuelTankPTap.networkCallback(std::move(packetptr));});
+    networkmanager.registerService(FuelTankPTaplocalservice,m_FuelPTLocal.getThisNetworkCallback());
+    networkmanager.registerService(FuelTankPTapremoteservice,[this](packetptr_t packetptr){FuelTankPTap.networkCallback(std::move(packetptr));});
     networkmanager.registerService(HPtankPTapservice,[this](packetptr_t packetptr){HPtankPTap.networkCallback(std::move(packetptr));});
-    networkmanager.registerService(OxTankPTService,m_OxPT.getThisNetworkCallback());
+    networkmanager.registerService(OxTankPTService,[this](packetptr_t packetptr){HPtankPTap.networkCallback(std::move(packetptr));});
+    
 };
 
 void System::systemUpdate(){
     Buck.update();
     Greg.update();
-    m_OxPTADC.update();
-    m_OxPT.update(static_cast<int32_t>(m_OxPTADC.getADC()));
+    m_FuelPTLocalADC.update();
+    m_FuelPTLocal.update(static_cast<int32_t>(m_FuelPTLocalADC.getADC()));
 };

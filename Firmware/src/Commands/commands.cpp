@@ -53,7 +53,7 @@ void Commands::GregTelemCommand(System& sm, const RnpPacketSerialized& packet)
 	gregtelem.header.uid = commandpacket.header.uid; 
 	gregtelem.FF_angle = sm.Greg.feedforward();
 	gregtelem.regAngle = sm.Greg.getRegAngle();
-	gregtelem.ox_tankP = sm.Greg.getOxTankP();
+	gregtelem.fuel_tankP = sm.Greg.getOxTankP();
 	gregtelem.P_angle = sm.Greg.getPAngle();
 	gregtelem.Kp = sm.Greg.Kp();
 	gregtelem.system_status = sm.systemstatus.getStatus();
@@ -68,5 +68,13 @@ void Commands::BuckRestartCommand(System& sm, const RnpPacketSerialized& packet)
 	SimpleCommandPacket receivedpacket(packet);
 
 	sm.Buck.restart(receivedpacket.arg); //Arg should be the time the buck is held off before startup is called again 
+
+}
+
+void Commands::SetHPN(System& sm, const RnpPacketSerialized& packet)
+{	
+	SimpleCommandPacket receivedpacket(packet);
+
+	sm.Greg.setHP((float)receivedpacket.arg/100000.0); //Arg should be the time the buck is held off before startup is called again 
 
 }

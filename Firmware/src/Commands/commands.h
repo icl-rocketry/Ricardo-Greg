@@ -21,4 +21,6 @@ namespace Commands{
     void GregTelemCommand(ForwardDecl_SystemClass& system, const RnpPacketSerialized& packet);
 
     void BuckRestartCommand(ForwardDecl_SystemClass& system, const RnpPacketSerialized& packet);
+
+    void SetHPN(ForwardDecl_SystemClass& system, const RnpPacketSerialized& packet);
 }

@@ -14,7 +14,7 @@ class GregTelemPacket : public RnpPacket{
         {
             auto ret = RnpSerializer(
                 &GregTelemPacket::FF_angle,
-                &GregTelemPacket::ox_tankP,
+                &GregTelemPacket::fuel_tankP,
                 &GregTelemPacket::regAngle,
                 &GregTelemPacket::P_angle,
                 &GregTelemPacket::Kp,
@@ -44,7 +44,7 @@ class GregTelemPacket : public RnpPacket{
         void serialize(std::vector<uint8_t>& buf) override;
 
         float FF_angle;
-        float ox_tankP;
+        float fuel_tankP;
         uint32_t regAngle;
         float P_angle;
         float Kp;

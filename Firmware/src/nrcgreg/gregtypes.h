@@ -20,13 +20,14 @@ enum class GREG_FLAGS : uint32_t
     STATE_CONTROLLED = (1 << 2),
     STATE_SHUTDOWN = (1 << 3),
     STATE_HALFABORT = (1 << 4),
-    // flags
     STATE_DEBUG = (1 << 5),
+
     // critical messages
     ERROR_CRITICALOVP = (1 << 6),   // Critical overpressure - abort triggered
-    ERROR_FUELTANKP = (1 << 7),     // Abort triggered by fueltank error
-    ERROR_OXTANKP_LOCAL = (1 << 8), // Abort triggered by local oxidiser tank error
-    ERROR_OXTANKP_REMOTE = (1 << 9) // Abort triggered by remote oxidiser tank error
+    ERROR_FUELTANKP_LOCAL = (1 << 7),     // Abort triggered by local fuel tank error
+    ERROR_FUELTANKP_REMOTE = (1 << 8), // Abort triggered by remote fuel tank error
+    ERROR_OXTANKP = (1 << 9), // Abort triggered by oxidiser tank error
+    ERROR_NITROGENTANKP = (1 << 10) // Abort triggered by oxidiser tank error
 };
 
 template <typename GREG_FLAGS_T>

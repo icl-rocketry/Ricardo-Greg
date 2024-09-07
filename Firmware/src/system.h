@@ -31,16 +31,19 @@ class System : public RicCoreSystem<System,SYSTEM_FLAG,Commands::ID>
 
         CanBus<SYSTEM_FLAG> canbus;
 
-        NetworkSensor fuelTankPTap;
+        NetworkSensor FuelTankPTap;
+        NetworkSensor OxTankPTap;
         NetworkSensor HPtankPTap;
-        SensorPoller fuelTankPoller;
+        
+        SensorPoller FuelTankPoller;
+        SensorPoller OxTankPoller;
         SensorPoller HPTankPTapPoller;
 
-        NRCRemotePTap m_OxPT;
+        NRCRemotePTap m_FuelPTLocal;
         NRCGreg Greg;
 
     private:
-        ADC m_OxPTADC;
+        ADC m_FuelPTLocalADC;
         
 
         
