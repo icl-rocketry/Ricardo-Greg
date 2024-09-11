@@ -88,7 +88,7 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         }
 
         float getAvgP(){return m_FuelTankAvg.getAvg();};
-
+        uint32_t getLowerMaxAngle(){return m_regMaxOpenFirstStart;};
         float getHalfAbortP(){return m_P_half_abort;};
         float getFullAbortP(){return m_P_full_abort;};
         void setHP(float HPN){m_HPN = HPN;}
@@ -167,6 +167,7 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         //! NOTE - All angles are x10 to allow for 0.1 degree precision in servo movements while still using integers
         const uint32_t m_regClosedAngle = 0;
         const uint32_t m_regMaxOpenAngle = 850;
+        const uint32_t m_regMaxOpenFirstStart = 700; //Lower maximum angle during the starting period of the controlled state to prevent pressure spikes.sss
         const uint32_t m_regMinOpenAngle = 400;
         const uint32_t m_halfAbortAngle = 400;
         uint32_t m_regPressuriseAngle = 490;

@@ -31,8 +31,12 @@ void Controlled::initialize()
 
 Types::EREGTypes::State_ptr_t Controlled::update()
 {
-
-    m_regAdapter.execute(static_cast<uint32_t>(m_Greg.nextAngle()));
+    if(millis() - m_stateEntry < 500){
+        m_regAdapter.execute(std::min(static_cast<uint32_t>(m_Greg.nextAngle()),m_Greg.getLowerMaxAngle())); //lower angle for the first half second after startup
+    }
+    else{
+        m_regAdapter.execute(static_cast<uint32_t>(m_Greg.nextAngle())); 
+    }
 
     if(millis() - m_stateEntry > m_cutoffTime){
         return std::make_unique<Shutdown>(m_defaultParams);
@@ -41,6 +45,7 @@ Types::EREGTypes::State_ptr_t Controlled::update()
 };
 
 void Controlled::exit()
-{
+{   
+    m_regAdapter.disarm();
     Types::EREGTypes::State_t::exit(); // call parent exit last!
 };
