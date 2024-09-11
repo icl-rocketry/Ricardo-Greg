@@ -94,8 +94,8 @@ void NRCGreg::checkPressures()
     //Check if any sensors are below the disconnect threshold
     checkDisconnect(m_FuelPT.getPressure(), GREG_FLAGS::ERROR_FTP_LOCAL_DC, "Local fuel tank PT");
     checkDisconnect(m_PressTankPoller.getVal(), GREG_FLAGS::ERROR_N2P_REMOTE_DC, "Remote nitrogen PT");
-    checkDisconnect(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_NORESPONSE, "Remote fuel tank PT");
-    checkDisconnect(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_NORESPONSE, "Remote ox tank PT");
+    checkDisconnect(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_DC, "Remote fuel tank PT");
+    checkDisconnect(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_DC, "Remote ox tank PT");
 
     //Check if any sensors are above the overpressure 
     checkOverPressure(m_FuelPT.getPressure(), GREG_FLAGS::ERROR_FTP_LOCAL_OVP, "Local fuel tank PT");
