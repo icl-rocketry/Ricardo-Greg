@@ -36,7 +36,7 @@ float NRCGreg::getFuelTankP()
     {
         RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Controller pressure source returned to local fuel ptap!");
     }
-    return m_FuelPT.getPressure();
+    return m_FuelTankAvg.getAvg();
 }
 
 float NRCGreg::feedforward()
@@ -64,6 +64,8 @@ uint32_t NRCGreg::nextAngle()
     return std::max(std::min(reg_angle, m_regMaxOpenAngle), m_regMinOpenAngle); // Set bounds on angle during operation.
 }
 
+uint32_t lastlog;
+
 void NRCGreg::update()
 {
     _value = m_GregStatus.getStatus();
@@ -72,6 +74,8 @@ void NRCGreg::update()
     {
         m_GregMachine.changeState(std::make_unique<Default>(m_DefaultStateParams)); // Return to defualt if the engine is disarmed
     }
+
+    m_FuelTankAvg.update(m_FuelPT.getPressure());
 
     m_GregMachine.update();
 
@@ -87,30 +91,27 @@ void NRCGreg::shutdown()
 
 void NRCGreg::checkPressures()
 {
-    if (m_FuelPT.getPressure() < m_P_disconnect) //
-    {
-        if (!m_GregStatus.flagSet(GREG_FLAGS::ERROR_FUELTANKP_LOCAL))
-        {
-            m_GregStatus.newFlag(GREG_FLAGS::ERROR_FUELTANKP_LOCAL, "Local fuel tank PT disconnected!");
-        }
-    }
+    //Check if any sensors are below the disconnect threshold
+    checkDisconnect(m_FuelPT.getPressure(), GREG_FLAGS::ERROR_FTP_LOCAL_DC, "Local fuel tank PT");
+    checkDisconnect(m_PressTankPoller.getVal(), GREG_FLAGS::ERROR_N2P_REMOTE_DC, "Remote nitrogen PT");
+    checkDisconnect(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_NORESPONSE, "Remote fuel tank PT");
+    checkDisconnect(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_NORESPONSE, "Remote ox tank PT");
 
-    if (m_FuelPT.getPressure() > m_P_full_abort)
-    {
-        if (!m_GregStatus.flagSet(GREG_FLAGS::ERROR_CRITICALOVP))
-        {
-            m_GregStatus.newFlag(GREG_FLAGS::ERROR_CRITICALOVP, "Local fuel tank PT exceeded maximum pressure!");
-        }
-        if (!m_GregStatus.flagSet(GREG_FLAGS::ERROR_FUELTANKP_LOCAL))
-        {
-            m_GregStatus.newFlag(GREG_FLAGS::ERROR_FUELTANKP_LOCAL, "Local fuel tank PT exceeded maximum pressure!");
-        }
-    }
+    //Check if any sensors are above the overpressure 
+    checkOverPressure(m_FuelPT.getPressure(), GREG_FLAGS::ERROR_FTP_LOCAL_OVP, "Local fuel tank PT");
+    checkOverPressure(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_OVP, "Remote fuel tank PT");
+    checkOverPressure(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_OVP, "Remote ox tank PT");
 
-    checkRemoteP();
+    if(m_GregStatus.flagSetOr(GREG_FLAGS::ERROR_FTP_LOCAL_OVP,GREG_FLAGS::ERROR_FTP_REMOTE_OVP,GREG_FLAGS::ERROR_OXP_REMOTE_OVP) && !m_GregStatus.flagSet(GREG_FLAGS::ERROR_CRITICALOVP)){
+        m_GregStatus.newFlag(GREG_FLAGS::ERROR_CRITICALOVP,"One or more pressures above the critical threshold!");
+    }
 
     if (m_GregStatus.flagSet(GREG_FLAGS::ERROR_CRITICALOVP))
     {
+        if (m_GregStatus.flagSet(GREG_FLAGS::STATE_DEFAULT))
+        {
+            return;
+        }
         shutdown(); // Abort in the case of a critical overpressure event.
         return;
     }
@@ -118,87 +119,62 @@ void NRCGreg::checkPressures()
 
 void NRCGreg::updateRemoteP()
 {
-
     if (m_GregStatus.flagSetOr(GREG_FLAGS::STATE_CONTROLLED, GREG_FLAGS::STATE_PRESSURISE)) // Only poll in the relevant states
     {
-        try
-        {
-            m_PressTankPoller.update();
-        }
-        catch (const std::exception &e)
-        {
-            if (!m_GregStatus.flagSet(GREG_FLAGS::ERROR_NITROGENTANKP))
-            {
-                m_GregStatus.newFlag(GREG_FLAGS::ERROR_NITROGENTANKP, "No response received from nitrogen PT service within the 1s timeout period!");
-            }
-        }
+        checkNoResponse(m_PressTankPoller, GREG_FLAGS::ERROR_N2P_REMOTE_NORESPONSE, "nitrogen P");
+        checkNoResponse(m_FuelTankPoller, GREG_FLAGS::ERROR_FTP_REMOTE_NORESPONSE, "fuel tank P");
+        checkNoResponse(m_OxTankPoller, GREG_FLAGS::ERROR_OXP_REMOTE_NORESPONSE, "ox tank P");
+    }
+}
 
-        try
+void NRCGreg::checkNoResponse(SensorPoller &poller_obj, GREG_FLAGS err_flag, std::string err_name)
+{
+    try
+    {
+        poller_obj.update();
+        if (m_GregStatus.flagSet(err_flag))
         {
-            m_FuelTankPoller.update();
+            m_GregStatus.deleteFlag(err_flag, std::string("Response received from ") + err_name + std::string(" service!"));
         }
-        catch (const std::exception &e)
+    }
+    catch (const std::exception &e)
+    {
+        if (!m_GregStatus.flagSet(err_flag))
         {
-            if (!m_GregStatus.flagSet(GREG_FLAGS::ERROR_FUELTANKP_REMOTE))
-            {
-                m_GregStatus.newFlag(GREG_FLAGS::ERROR_FUELTANKP_REMOTE, "No response received from remote fuel tank PT service within the 1s timeout period!");
-            }
-        }
-
-        try
-        {
-            m_OxTankPoller.update();
-        }
-        catch (const std::exception &e)
-        {
-            if (!m_GregStatus.flagSet(GREG_FLAGS::ERROR_OXTANKP))
-            {
-                m_GregStatus.newFlag(GREG_FLAGS::ERROR_OXTANKP, "No response received from oxidiser tank PT service within the 1s timeout period!");
-            }
+            m_GregStatus.newFlag(err_flag, std::string("No response received from ") + err_name + std::string(" service within the 1s timeout period!"));
         }
     }
 }
 
-void NRCGreg::checkRemoteP()
+void NRCGreg::checkDisconnect(float value, GREG_FLAGS err_flag, std::string err_name)
 {
-    if (m_FuelTankPoller.getVal() < m_P_disconnect)
+    if (value < m_P_disconnect)
     {
-        if (!m_GregStatus.flagSet(GREG_FLAGS::ERROR_FUELTANKP_REMOTE))
+        if (!m_GregStatus.flagSet(err_flag))
         {
-            m_GregStatus.newFlag(GREG_FLAGS::ERROR_FUELTANKP_REMOTE, "Remote fuel tank PT disconnected!");
+            m_GregStatus.newFlag(err_flag, err_name + std::string(" disconnected!"));
         }
     }
 
-    if (m_OxTankPoller.getVal() < m_P_disconnect)
+    else if (value > m_P_disconnect && m_GregStatus.flagSet(err_flag))
     {
-        if (!m_GregStatus.flagSet(GREG_FLAGS::ERROR_OXTANKP))
+        m_GregStatus.deleteFlag(err_flag, err_name + std::string(" reading back in expected range!"));
+    }
+}
+
+void NRCGreg::checkOverPressure(float value, GREG_FLAGS err_flag, std::string err_name)
+{
+    if (value > m_P_full_abort)
+    {
+        if (!m_GregStatus.flagSet(err_flag))
         {
-            m_GregStatus.newFlag(GREG_FLAGS::ERROR_OXTANKP, "Remote fuel tank PT disconnected!");
+            m_GregStatus.newFlag(err_flag, err_name + std::string(" exceeded critical pressure!"));
         }
     }
 
-    if (m_FuelTankPoller.getVal() > m_P_full_abort)
+    else if (value < m_P_full_abort && m_GregStatus.flagSet(err_flag))
     {
-        if (!m_GregStatus.flagSet(GREG_FLAGS::ERROR_CRITICALOVP))
-        {
-            m_GregStatus.newFlag(GREG_FLAGS::ERROR_CRITICALOVP, "Remote fuel tank PT exceeded maximum pressure!");
-        }
-        if (!m_GregStatus.flagSet(GREG_FLAGS::ERROR_FUELTANKP_REMOTE))
-        {
-            m_GregStatus.newFlag(GREG_FLAGS::ERROR_FUELTANKP_REMOTE, "Remote fuel tank PT exceeded maximum pressure!");
-        }
-    }
-
-    if (m_OxTankPoller.getVal() > m_P_full_abort)
-    {
-        if (!m_GregStatus.flagSet(GREG_FLAGS::ERROR_CRITICALOVP))
-        {
-            m_GregStatus.newFlag(GREG_FLAGS::ERROR_CRITICALOVP, "Remote ox tank PT exceeded maximum pressure!");
-        }
-        if (!m_GregStatus.flagSet(GREG_FLAGS::ERROR_OXTANKP))
-        {
-            m_GregStatus.newFlag(GREG_FLAGS::ERROR_OXTANKP, "Remote ox tank PT exceeded maximum pressure!");
-        }
+        m_GregStatus.deleteFlag(err_flag, err_name + std::string(" reading back below critical pressure!"));
     }
 }
 

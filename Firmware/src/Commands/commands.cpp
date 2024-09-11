@@ -53,7 +53,7 @@ void Commands::GregTelemCommand(System& sm, const RnpPacketSerialized& packet)
 	gregtelem.header.uid = commandpacket.header.uid; 
 	gregtelem.FF_angle = sm.Greg.feedforward();
 	gregtelem.regAngle = sm.Greg.getRegAngle();
-	gregtelem.fuel_tankP = sm.Greg.getFuelTankP();
+	gregtelem.fuel_tankP = sm.Greg.getAvgP();
 	gregtelem.P_angle = sm.Greg.getPAngle();
 	gregtelem.Kp = sm.Greg.Kp();
 	gregtelem.system_status = sm.systemstatus.getStatus();

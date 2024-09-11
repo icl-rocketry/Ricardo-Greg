@@ -16,12 +16,14 @@
 #include <librrc/Remote/nrcremoteptap.h>
 #include <librrc/Helpers/sensorpoller.h>
 
+
 #include <librrc/HAL/localpwm.h>
 
 #include <librnp/rnp_networkmanager.h>
 #include <librnp/rnp_packet.h>
 #include <libriccore/fsm/statemachine.h>
 #include <libriccore/riccorelogging.h>
+#include <libriccore/filtering/movingAvg.h>
 
 #include "gregtypes.h"
     
@@ -47,7 +49,8 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
             m_FuelPT(FuelTankPT),
             m_PressTankPoller(NitrogenPPoller),
             m_OxTankPoller(OxTankPPoller),
-            m_FuelTankPoller(FuelTankPPoller)
+            m_FuelTankPoller(FuelTankPPoller),
+            m_FuelTankAvg(12)
             {};
 
         void setup();
@@ -84,6 +87,8 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
             return Params;
         }
 
+        float getAvgP(){return m_FuelTankAvg.getAvg();};
+
         float getHalfAbortP(){return m_P_half_abort;};
         float getFullAbortP(){return m_P_full_abort;};
         void setHP(float HPN){m_HPN = HPN;}
@@ -110,14 +115,23 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         SensorPoller& m_OxTankPoller;
         SensorPoller& m_FuelTankPoller;
 
+        //Tank pressure moving average
+        MovingAvg m_FuelTankAvg;
+
         void execute_impl(packetptr_t packetptr);
         void override_impl(packetptr_t packetptr);
         void extendedCommandHandler_impl(const NRCPacket::NRC_COMMAND_ID commandID, packetptr_t packetptr);
 
+
+        //Pressure check helpers
         void updateRemoteP(); //Method to be called during update. Updates the values of remote PTAPs.
 
-        void checkPressures(); //Method to be called during update. Checks whether pressures are within operating limits.
-        void checkRemoteP();
+        void checkPressures(); //Method to be called during update. Checks all pressures are within operating limits.
+        void checkRemoteP(); //Method to be called during update. Checks remote pressures are within operating limits and responding.
+        void checkNoResponse(SensorPoller& poller_obj, GREG_FLAGS err_flag, std::string err_name);
+        void checkDisconnect(float sensorvalue, GREG_FLAGS err_flag, std::string err_name);
+        void checkOverPressure(float sensorvalue, GREG_FLAGS err_flag, std::string err_name);
+
         
         void shutdown();
 
@@ -141,11 +155,11 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         float m_Kp_Beta = 222.9;
 
         // Controller setpoints
-        float m_P_setpoint = 37.5; //Running pressure setpoint.
+        float m_P_setpoint = 40; //Running pressure setpoint.
         float m_P_press_extra = 1.5; //Extra pressure to add during pressurisation to make sure setpoint is reached.
 
         // Operating pressure limits
-        float m_P_disconnect = -2; //Below this value, the PT is considered disconnected.
+        float m_P_disconnect = -10; //Below this value, the PT is considered disconnected.
         float m_P_half_abort = 50; //Above this value, a half abort will be triggered.
         float m_P_full_abort = 60; //Above this value, a full abort will be triggered.
 

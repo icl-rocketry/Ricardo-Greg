@@ -24,10 +24,25 @@ enum class GREG_FLAGS : uint32_t
 
     // critical messages
     ERROR_CRITICALOVP = (1 << 6),   // Critical overpressure - abort triggered
-    ERROR_FUELTANKP_LOCAL = (1 << 7),     // Abort triggered by local fuel tank error
-    ERROR_FUELTANKP_REMOTE = (1 << 8), // Abort triggered by remote fuel tank error
-    ERROR_OXTANKP = (1 << 9), // Abort triggered by oxidiser tank error
-    ERROR_NITROGENTANKP = (1 << 10) // Abort triggered by oxidiser tank error
+    // Local fuel tank codes
+    ERROR_FUELTANKP_LOCAL = (1 << 7),     // Abort triggered by some local fuel tank error
+    ERROR_FTP_LOCAL_DC = (1 << 8),        // Trigerred by disconnect
+    ERROR_FTP_LOCAL_NORESPONSE = (1 << 9),// No response
+    ERROR_FTP_LOCAL_OVP = (1 << 10),      // Overpressure
+    // Remote fuel tank codes
+    ERROR_FUELTANKP_REMOTE = (1 << 11),    // Abort triggered by some remote fuel tank error
+    ERROR_FTP_REMOTE_DC = (1 << 12),        // Disconnect
+    ERROR_FTP_REMOTE_NORESPONSE = (1 << 13),// No response
+    ERROR_FTP_REMOTE_OVP = (1 << 14),       // Overpressure
+    // Ox tank error codes
+    ERROR_OXTANKP_REMOTE = (1 << 15),      // Abort triggered by some ox tank error
+    ERROR_OXP_REMOTE_DC = (1 << 16),        // Disconnect
+    ERROR_OXP_REMOTE_NORESPONSE = (1 << 17),// No response
+    ERROR_OXP_REMOTE_OVP = (1 << 18),       // Overpressure
+    // Nitrogen tank error code
+    ERROR_N2P_REMOTE = (1 << 19),          // Abort triggered by some NITROGEN tank error
+    ERROR_N2P_REMOTE_DC = (1 << 20),        // Disconnect
+    ERROR_N2P_REMOTE_NORESPONSE = (1 << 21),// No response
 };
 
 template <typename GREG_FLAGS_T>

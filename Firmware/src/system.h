@@ -43,6 +43,7 @@ class System : public RicCoreSystem<System,SYSTEM_FLAG,Commands::ID>
         NRCGreg Greg;
 
     private:
+
         ADC m_FuelPTLocalADC;
         
 

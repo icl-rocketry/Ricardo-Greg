@@ -7,9 +7,13 @@
 #include <stdint.h>
 
 namespace PinMap{
-    
+    //Greg
     static constexpr uint8_t TxCan = 33;
     static constexpr uint8_t RxCan = 34;
+
+    //Pickle
+    // static constexpr int TxCan = 32;
+    // static constexpr int RxCan = 33;
 
     static constexpr uint8_t ServoPWM0 = 36;
     static constexpr uint8_t ServoPWM1 = 37;

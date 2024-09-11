@@ -12,11 +12,13 @@
 #include <librrc/Local/remoteactuatoradapter.h>
 
 #include "system.h"
+#include "shutdown.h"
 
 
 Controlled::Controlled(Greg::DefaultStateInit& DefaultInitParams, NRCGreg& Greg):
 State(GREG_FLAGS::STATE_CONTROLLED,DefaultInitParams.gregstatus),
 m_regAdapter(DefaultInitParams.regAdapter),
+m_defaultParams(DefaultInitParams),
 m_Greg(Greg)
 {};
 
@@ -24,6 +26,7 @@ void Controlled::initialize()
 {
     Types::EREGTypes::State_t::initialize(); // call parent initialize first!
     m_regAdapter.arm(0);
+    m_stateEntry = millis();
 };
 
 Types::EREGTypes::State_ptr_t Controlled::update()
@@ -31,6 +34,9 @@ Types::EREGTypes::State_ptr_t Controlled::update()
 
     m_regAdapter.execute(static_cast<uint32_t>(m_Greg.nextAngle()));
 
+    if(millis() - m_stateEntry > m_cutoffTime){
+        return std::make_unique<Shutdown>(m_defaultParams);
+    }
     return nullptr;
 };
 

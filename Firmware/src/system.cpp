@@ -23,7 +23,7 @@ System::System():
 RicCoreSystem(Commands::command_map,Commands::defaultEnabledCommands,Serial),
 Buck(PinMap::BuckPGOOD, PinMap::BuckEN, 1, 1, PinMap::BuckOutputV, 1500, 470),
 canbus(systemstatus,PinMap::TxCan,PinMap::RxCan,3),
-FuelTankPTap(1, GeneralConfig::KermitAddr, static_cast<uint8_t>(Services::ID::FuelTankPTRemote), static_cast<uint8_t>(Services::ID::FuelTankPTRemote), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
+FuelTankPTap(0, GeneralConfig::KermitAddr, static_cast<uint8_t>(Services::ID::FuelTankPTRemote), static_cast<uint8_t>(Services::ID::FuelTankPTRemote), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
 OxTankPTap(1, GeneralConfig::StarkAddr, static_cast<uint8_t>(Services::ID::OxTankPT), static_cast<uint8_t>(Services::ID::OxTankPT), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
 HPtankPTap(2, GeneralConfig::KermitAddr, static_cast<uint8_t>(Services::ID::HPTankPT), static_cast<uint8_t>(Services::ID::HPTankPT), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
 FuelTankPoller(50, &FuelTankPTap),
@@ -74,13 +74,13 @@ void System::systemSetup(){
     networkmanager.registerService(FuelTankPTaplocalservice,m_FuelPTLocal.getThisNetworkCallback());
     networkmanager.registerService(FuelTankPTapremoteservice,[this](packetptr_t packetptr){FuelTankPTap.networkCallback(std::move(packetptr));});
     networkmanager.registerService(HPtankPTapservice,[this](packetptr_t packetptr){HPtankPTap.networkCallback(std::move(packetptr));});
-    networkmanager.registerService(OxTankPTService,[this](packetptr_t packetptr){HPtankPTap.networkCallback(std::move(packetptr));});
+    networkmanager.registerService(OxTankPTService,[this](packetptr_t packetptr){OxTankPTap.networkCallback(std::move(packetptr));});
     
 };
 
 void System::systemUpdate(){
-    Buck.update();
-    Greg.update();
     m_FuelPTLocalADC.update();
     m_FuelPTLocal.update(static_cast<int32_t>(m_FuelPTLocalADC.getADC()));
+    Buck.update();
+    Greg.update();
 };

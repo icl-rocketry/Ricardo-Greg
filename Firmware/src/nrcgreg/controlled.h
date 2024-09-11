@@ -54,6 +54,9 @@ class Controlled : public Types::EREGTypes::State_t
     private:
         uint32_t prevLogMessageTime;
         Types::ServoAdapter_t& m_regAdapter;
+        Greg::DefaultStateInit& m_defaultParams;
         NRCGreg& m_Greg;
+        uint32_t m_cutoffTime = 14500;
+        uint32_t m_stateEntry = 0;
         float nextAngle();
 };
