@@ -127,13 +127,14 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         void updateRemoteP(); //Method to be called during update. Updates the values of remote PTAPs.
 
         void checkPressures(); //Method to be called during update. Checks all pressures are within operating limits.
-        void checkRemoteP(); //Method to be called during update. Checks remote pressures are within operating limits and responding.
         void checkNoResponse(SensorPoller& poller_obj, GREG_FLAGS err_flag, std::string err_name);
         void checkDisconnect(float sensorvalue, GREG_FLAGS err_flag, std::string err_name);
-        void checkOverPressure(float sensorvalue, GREG_FLAGS err_flag, std::string err_name);
+        void checkCOverPressure(float sensorvalue, GREG_FLAGS err_flag, std::string err_name);
+        void checkHOverPressure(float sensorvalue, GREG_FLAGS err_flag, std::string err_name);
 
         
         void shutdown();
+        void halfabort();
 
         // FSM related stuff
         Types::EREGTypes::StateMachine_t m_GregMachine;
@@ -177,5 +178,9 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
 
         //Variable to track which pressure source we're using for the controller. 0 is local, 1 is remote.
         bool m_P_source = 0;
+
+        //Variables to track how many sensors have disconnected or are not responding
+        uint8_t m_DC_count = 0;
+        uint8_t m_NORESP_count = 0;
 
 };

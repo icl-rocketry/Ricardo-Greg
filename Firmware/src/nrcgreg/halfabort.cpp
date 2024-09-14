@@ -26,7 +26,7 @@ void Halfabort::initialize()
     Types::EREGTypes::State_t::initialize(); // call parent initialize first!
 
     m_regAdapter.arm(0); //Arm the servo
-    m_regAdapter.execute(m_regClosedAngle); //Drive the E-Reg to the halfabort predefined angle
+    m_regAdapter.execute(m_regHalfAbortAngle); //Drive the E-Reg to the halfabort predefined angle
     m_regAdapter.disarm(); //No reason to keep actuator armed
 };
 

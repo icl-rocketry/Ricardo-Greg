@@ -11,6 +11,7 @@
 #include "shutdown.h"
 #include "controlled.h"
 #include "debug.h"
+#include "halfabort.h"
 
 // Setup for the E-Reg Controller
 void NRCGreg::setup()
@@ -89,6 +90,11 @@ void NRCGreg::shutdown()
     m_GregMachine.changeState(std::make_unique<Shutdown>(m_DefaultStateParams));
 }
 
+void NRCGreg::halfabort()
+{
+    m_GregMachine.changeState(std::make_unique<Halfabort>(m_DefaultStateParams,m_FF_min));
+}
+
 void NRCGreg::checkPressures()
 {
     //Check if any sensors are below the disconnect threshold
@@ -97,13 +103,26 @@ void NRCGreg::checkPressures()
     checkDisconnect(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_DC, "Remote fuel tank PT");
     checkDisconnect(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_DC, "Remote ox tank PT");
 
-    //Check if any sensors are above the overpressure 
-    checkOverPressure(m_FuelPT.getPressure(), GREG_FLAGS::ERROR_FTP_LOCAL_OVP, "Local fuel tank PT");
-    checkOverPressure(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_OVP, "Remote fuel tank PT");
-    checkOverPressure(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_OVP, "Remote ox tank PT");
+    //Check if any sensors are above the critical overpressure threshold
+    checkCOverPressure(m_FuelPT.getPressure(), GREG_FLAGS::ERROR_FTP_LOCAL_COVP, "Local fuel tank PT");
+    checkCOverPressure(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_COVP, "Remote fuel tank PT");
+    checkCOverPressure(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_COVP, "Remote ox tank PT");
 
-    if(m_GregStatus.flagSetOr(GREG_FLAGS::ERROR_FTP_LOCAL_OVP,GREG_FLAGS::ERROR_FTP_REMOTE_OVP,GREG_FLAGS::ERROR_OXP_REMOTE_OVP) && !m_GregStatus.flagSet(GREG_FLAGS::ERROR_CRITICALOVP)){
+    //Check if any sensors are above the half abort overpressure threshold
+    checkHOverPressure(m_FuelPT.getPressure(), GREG_FLAGS::ERROR_FTP_LOCAL_HOVP, "Local fuel tank PT");
+    checkHOverPressure(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_HOVP, "Remote fuel tank PT");
+    checkHOverPressure(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_HOVP, "Remote ox tank PT");
+
+    if(m_GregStatus.flagSetOr(GREG_FLAGS::ERROR_FTP_LOCAL_COVP,GREG_FLAGS::ERROR_FTP_REMOTE_COVP,GREG_FLAGS::ERROR_OXP_REMOTE_COVP) && !m_GregStatus.flagSet(GREG_FLAGS::ERROR_CRITICALOVP)){
         m_GregStatus.newFlag(GREG_FLAGS::ERROR_CRITICALOVP,"One or more pressures above the critical threshold!");
+    }
+
+    if(m_GregStatus.flagSetOr(GREG_FLAGS::ERROR_FTP_LOCAL_HOVP,GREG_FLAGS::ERROR_FTP_REMOTE_HOVP,GREG_FLAGS::ERROR_OXP_REMOTE_HOVP) && !m_GregStatus.flagSet(GREG_FLAGS::ERROR_HALFABORT)){
+        m_GregStatus.newFlag(GREG_FLAGS::ERROR_HALFABORT,"One or more pressures above the half abort threshold!");
+    }
+
+    if((m_DC_count > 2 || m_NORESP_count > 2) && !m_GregStatus.flagSet(GREG_FLAGS::ERROR_HALFABORT)){
+        m_GregStatus.newFlag(GREG_FLAGS::ERROR_HALFABORT,"Half abort triggered by sensor disconnects or sensors not responding!");
     }
 
     if (m_GregStatus.flagSet(GREG_FLAGS::ERROR_CRITICALOVP))
@@ -113,6 +132,16 @@ void NRCGreg::checkPressures()
             return;
         }
         shutdown(); // Abort in the case of a critical overpressure event.
+        return;
+    }
+
+    if (m_GregStatus.flagSet(GREG_FLAGS::ERROR_HALFABORT))
+    {
+        if (m_GregStatus.flagSet(GREG_FLAGS::STATE_DEFAULT))
+        {
+            return;
+        }
+        halfabort(); // Abort if any of the half abort conditions are met
         return;
     }
 }
@@ -135,6 +164,7 @@ void NRCGreg::checkNoResponse(SensorPoller &poller_obj, GREG_FLAGS err_flag, std
         if (m_GregStatus.flagSet(err_flag))
         {
             m_GregStatus.deleteFlag(err_flag, std::string("Response received from ") + err_name + std::string(" service!"));
+            m_NORESP_count -= 1;
         }
     }
     catch (const std::exception &e)
@@ -142,6 +172,7 @@ void NRCGreg::checkNoResponse(SensorPoller &poller_obj, GREG_FLAGS err_flag, std
         if (!m_GregStatus.flagSet(err_flag))
         {
             m_GregStatus.newFlag(err_flag, std::string("No response received from ") + err_name + std::string(" service within the 1s timeout period!"));
+            m_NORESP_count += 1; //Iterate the counter that keeps track of sensors that aren't responding
         }
     }
 }
@@ -153,16 +184,18 @@ void NRCGreg::checkDisconnect(float value, GREG_FLAGS err_flag, std::string err_
         if (!m_GregStatus.flagSet(err_flag))
         {
             m_GregStatus.newFlag(err_flag, err_name + std::string(" disconnected!"));
+            m_DC_count += 1; //Iterate counter that keeps track of how many sensors have disconnected
         }
     }
 
     else if (value > m_P_disconnect && m_GregStatus.flagSet(err_flag))
     {
         m_GregStatus.deleteFlag(err_flag, err_name + std::string(" reading back in expected range!"));
+        m_DC_count -= 1;
     }
 }
 
-void NRCGreg::checkOverPressure(float value, GREG_FLAGS err_flag, std::string err_name)
+void NRCGreg::checkCOverPressure(float value, GREG_FLAGS err_flag, std::string err_name)
 {
     if (value > m_P_full_abort)
     {
@@ -175,6 +208,22 @@ void NRCGreg::checkOverPressure(float value, GREG_FLAGS err_flag, std::string er
     else if (value < m_P_full_abort && m_GregStatus.flagSet(err_flag))
     {
         m_GregStatus.deleteFlag(err_flag, err_name + std::string(" reading back below critical pressure!"));
+    }
+}
+
+void NRCGreg::checkHOverPressure(float value, GREG_FLAGS err_flag, std::string err_name)
+{
+    if (value > m_P_half_abort)
+    {
+        if (!m_GregStatus.flagSet(err_flag))
+        {
+            m_GregStatus.newFlag(err_flag, err_name + std::string(" exceeded half abort pressure!"));
+        }
+    }
+
+    else if (value < m_P_half_abort && m_GregStatus.flagSet(err_flag))
+    {
+        m_GregStatus.deleteFlag(err_flag, err_name + std::string(" reading back below half abort pressure!"));
     }
 }
 
