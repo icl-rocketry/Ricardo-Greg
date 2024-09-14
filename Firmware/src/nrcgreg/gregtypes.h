@@ -28,25 +28,24 @@ enum class GREG_FLAGS : uint32_t
     // Local fuel tank codes
     ERROR_FUELTANKP_LOCAL = (1 << 8),     // Abort triggered by some local fuel tank error
     ERROR_FTP_LOCAL_DC = (1 << 9),        // Trigerred by disconnect
-    ERROR_FTP_LOCAL_NORESPONSE = (1 << 10),// No response
-    ERROR_FTP_LOCAL_COVP = (1 << 11),     // Critical Overpressure
-    ERROR_FTP_LOCAL_HOVP = (1 << 12),     // Half abort overpressure
+    ERROR_FTP_LOCAL_COVP = (1 << 10),     // Critical Overpressure
+    ERROR_FTP_LOCAL_HOVP = (1 << 11),     // Half abort overpressure
     // Remote fuel tank codes
-    ERROR_FUELTANKP_REMOTE = (1 << 13),    // Abort triggered by some remote fuel tank error
-    ERROR_FTP_REMOTE_DC = (1 << 14),        // Disconnect
-    ERROR_FTP_REMOTE_NORESPONSE = (1 << 15),// No response
-    ERROR_FTP_REMOTE_COVP = (1 << 16),       // Critical Overpressure
-    ERROR_FTP_REMOTE_HOVP = (1 << 17),
+    ERROR_FUELTANKP_REMOTE = (1 << 12),    // Abort triggered by some remote fuel tank error
+    ERROR_FTP_REMOTE_DC = (1 << 13),        // Disconnect
+    ERROR_FTP_REMOTE_NORESPONSE = (1 << 14),// No response
+    ERROR_FTP_REMOTE_COVP = (1 << 15),       // Critical Overpressure
+    ERROR_FTP_REMOTE_HOVP = (1 << 16),
     // Ox tank error codes
-    ERROR_OXTANKP_REMOTE = (1 << 18),      // Some ox tank error
-    ERROR_OXP_REMOTE_DC = (1 << 19),        // Disconnect
-    ERROR_OXP_REMOTE_NORESPONSE = (1 << 20),// No response
-    ERROR_OXP_REMOTE_COVP = (1 << 21),       // Critical Overpressure
-    ERROR_OXP_REMOTE_HOVP = (1 << 22),       
+    ERROR_OXTANKP_REMOTE = (1 << 17),      // Some ox tank error
+    ERROR_OXP_REMOTE_DC = (1 << 18),        // Disconnect
+    ERROR_OXP_REMOTE_NORESPONSE = (1 << 19),// No response
+    ERROR_OXP_REMOTE_COVP = (1 << 20),       // Critical Overpressure
+    ERROR_OXP_REMOTE_HOVP = (1 << 21),       
     // Nitrogen tank error codes
-    ERROR_N2P_REMOTE = (1 << 23),          // Some NITROGEN tank error
-    ERROR_N2P_REMOTE_DC = (1 << 24),        // Disconnect
-    ERROR_N2P_REMOTE_NORESPONSE = (1 << 25),// No response
+    ERROR_N2P_REMOTE = (1 << 22),          // Some NITROGEN tank error
+    ERROR_N2P_REMOTE_DC = (1 << 23),        // Disconnect
+    ERROR_N2P_REMOTE_NORESPONSE = (1 << 24),// No response
 };
 
 template <typename GREG_FLAGS_T>
