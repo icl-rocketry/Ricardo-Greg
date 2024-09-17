@@ -160,7 +160,7 @@ void NRCGreg::checkPressures()
         return;
     }
 
-    if (m_GregStatus.flagSet(GREG_FLAGS::ERROR_HALFABORT))
+    if (m_GregStatus.flagSet(GREG_FLAGS::ERROR_HALFABORT) && m_GregStatus.flagSet(GREG_FLAGS::STATE_CONTROLLED))
     {
         if (m_GregStatus.flagSet(GREG_FLAGS::STATE_DEFAULT))
         {
