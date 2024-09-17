@@ -50,7 +50,7 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
             m_PressTankPoller(NitrogenPPoller),
             m_OxTankPoller(OxTankPPoller),
             m_FuelTankPoller(FuelTankPPoller),
-            m_FuelTankAvg(12)
+            m_FuelTankAvg(20)
             {};
 
         void setup();
@@ -91,10 +91,9 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         uint32_t getLowerMaxAngle(){return m_regMaxOpenFirstStart;};
         float getHalfAbortP(){return m_P_half_abort;};
         float getFullAbortP(){return m_P_full_abort;};
-        void setHP(float HPN){m_HPN = HPN;}
 
     protected:
-        float m_HPN;
+
         //Networking
         RnpNetworkManager &m_networkmanager;
         friend class NRCRemoteActuatorBase;
@@ -131,7 +130,8 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         void checkDisconnect(float sensorvalue, GREG_FLAGS err_flag, std::string err_name);
         void checkCOverPressure(float sensorvalue, GREG_FLAGS err_flag, std::string err_name);
         void checkHOverPressure(float sensorvalue, GREG_FLAGS err_flag, std::string err_name);
-
+        template<typename... Flags>
+        void checkGenericPTFlag(GREG_FLAGS generic_flag, std::string err_name, Flags... err_flags); //Method asserts generic_flag if any of err_flags input are asserted, and deasserts generic if no err_flags are asserted.
         
         void shutdown();
         void halfabort();
@@ -161,17 +161,17 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
 
         // Operating pressure limits
         float m_P_disconnect = -10; //Below this value, the PT is considered disconnected.
-        float m_P_half_abort = 50; //Above this value, a half abort will be triggered.
-        float m_P_full_abort = 60; //Above this value, a full abort will be triggered.
+        float m_P_half_abort = 55; //Above this value, a half abort will be triggered.
+        float m_P_full_abort = 65; //Above this value, a full abort will be triggered.
 
         //        --- HARDWARE LIMITS ---
         //! NOTE - All angles are x10 to allow for 0.1 degree precision in servo movements while still using integers
         const uint32_t m_regClosedAngle = 0;
         const uint32_t m_regMaxOpenAngle = 850;
-        const uint32_t m_regMaxOpenFirstStart = 700; //Lower maximum angle during the starting period of the controlled state to prevent pressure spikes.sss
+        const uint32_t m_regMaxOpenFirstStart = 600; //Lower maximum angle during the starting period of the controlled state to prevent pressure spikes.sss
         const uint32_t m_regMinOpenAngle = 400;
         const uint32_t m_halfAbortAngle = 400;
-        uint32_t m_regPressuriseAngle = 490;
+        uint32_t m_regPressuriseAngle = 40;
 
         //Variables to log out
         float m_P_angle;
@@ -182,5 +182,8 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         //Variables to track how many sensors have disconnected or are not responding
         uint8_t m_DC_count = 0;
         uint8_t m_NORESP_count = 0;
+
+        //Variable for updating network sensor time to prevent timeout straight away.
+        uint32_t m_lastPollSlow = 0;
 
 };

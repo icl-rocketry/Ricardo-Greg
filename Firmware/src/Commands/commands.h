@@ -22,5 +22,4 @@ namespace Commands{
 
     void BuckRestartCommand(ForwardDecl_SystemClass& system, const RnpPacketSerialized& packet);
 
-    void SetHPN(ForwardDecl_SystemClass& system, const RnpPacketSerialized& packet);
 }
