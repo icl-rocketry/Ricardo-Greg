@@ -38,9 +38,9 @@ Types::EREGTypes::State_ptr_t Controlled::update()
         m_regAdapter.execute(static_cast<uint32_t>(m_Greg.nextAngle())); 
     }
 
-    if(millis() - m_stateEntry > m_cutoffTime){
-        return std::make_unique<Shutdown>(m_defaultParams);
-    }
+    // if(millis() - m_stateEntry > m_cutoffTime){
+    //     return std::make_unique<Shutdown>(m_defaultParams);
+    // }
     return nullptr;
 };
 

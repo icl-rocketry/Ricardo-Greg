@@ -88,6 +88,7 @@ void NRCGreg::update()
             }
             catch (const std::exception &e)
             {}
+            m_lastPollSlow = millis();
         }
     }
 

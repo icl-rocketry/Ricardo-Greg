@@ -133,6 +133,7 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         template<typename... Flags>
         void checkGenericPTFlag(GREG_FLAGS generic_flag, std::string err_name, Flags... err_flags); //Method asserts generic_flag if any of err_flags input are asserted, and deasserts generic if no err_flags are asserted.
         
+        //Helperes to aid state transitions
         void shutdown();
         void halfabort();
 
@@ -171,7 +172,7 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         const uint32_t m_regMaxOpenFirstStart = 600; //Lower maximum angle during the starting period of the controlled state to prevent pressure spikes.sss
         const uint32_t m_regMinOpenAngle = 400;
         const uint32_t m_halfAbortAngle = 400;
-        uint32_t m_regPressuriseAngle = 40;
+        uint32_t m_regPressuriseAngle = 400;
 
         //Variables to log out
         float m_P_angle;
