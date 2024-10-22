@@ -2,8 +2,9 @@
 
 #include <libriccore/riccoresystem.h>
 #include <libriccore/networkinterfaces/can/canbus.h>
-#include <librrc/networksensor.h>
-#include "librrc/sensorpoller.h"
+#include <libriccore/platform/esp32/ADC.h>
+#include <librrc/Interface/networksensor.h>
+#include <librrc/Helpers/sensorpoller.h>
 
 #include "Config/systemflags_config.h"
 #include "Config/commands_config.h"
@@ -11,7 +12,7 @@
 
 
 #include "SiC43x.h"
-#include "nrcthanos/nrcthanos.h"
+#include "nrcgreg/nrcgreg.h"
 
 #include "Commands/commands.h"
 
@@ -30,16 +31,21 @@ class System : public RicCoreSystem<System,SYSTEM_FLAG,Commands::ID>
 
         CanBus<SYSTEM_FLAG> canbus;
 
-        NetworkSensor chamberPTap;
-        NetworkSensor thrustGauge;
+        NetworkSensor FuelTankPTap;
+        NetworkSensor OxTankPTap;
         NetworkSensor HPtankPTap;
-        SensorPoller chamberPTapPoller;
-        SensorPoller thrustGaugePoller;
+        
+        SensorPoller FuelTankPoller;
+        SensorPoller OxTankPoller;
         SensorPoller HPTankPTapPoller;
 
-        NRCThanos Thanos;
+        NRCRemotePTap m_FuelPTLocal;
+        NRCGreg Greg;
 
-    // private:
+    private:
+
+        ADC m_FuelPTLocalADC;
+        
 
         
 

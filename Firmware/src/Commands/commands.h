@@ -18,7 +18,8 @@ namespace Commands{
     
     void FreeRamCommand(ForwardDecl_SystemClass& system, const RnpPacketSerialized& packet);
 
-    void ChadTelemCommand(ForwardDecl_SystemClass& system, const RnpPacketSerialized& packet);
+    void GregTelemCommand(ForwardDecl_SystemClass& system, const RnpPacketSerialized& packet);
 
     void BuckRestartCommand(ForwardDecl_SystemClass& system, const RnpPacketSerialized& packet);
+
 }

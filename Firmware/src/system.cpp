@@ -16,30 +16,28 @@
 
 #include "States/idle.h"
 
-#include <librrc/rocketcomponent.h>
+#include <librrc/Interface/rocketcomponent.h>
 
-//I'm guessing this is where most things in the overall system are connected together using existing definitions from other header files
 System::System():
 RicCoreSystem(Commands::command_map,Commands::defaultEnabledCommands,Serial),
 Buck(PinMap::BuckPGOOD, PinMap::BuckEN, 1, 1, PinMap::BuckOutputV, 1500, 470),
 canbus(systemstatus,PinMap::TxCan,PinMap::RxCan,3),
-chamberPTap(1, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::chamberPTap), static_cast<uint8_t>(Services::ID::chamberPTap), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
-thrustGauge(2, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::thrustGauge), static_cast<uint8_t>(Services::ID::thrustGauge), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
-//**** CHECK THIS IS ANYWHERE CLOSE TO CORRECT ****
-HPtankPTap(3, GeneralConfig::Kermitaddr, static_cast<uint8_t>(Services::ID::HPtankPTap), static_cast<uint8_t>(Services::ID::HPtankPTap), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
-//*************************************************
-chamberPTapPoller(50, &chamberPTap),
-thrustGaugePoller(20, &thrustGauge),
-HPTankPTapPoller(50, &HPtankPTap), //Numbers refer to the sample time in ms
-
-//This is used in nrcthanos.h to define the pinouts using pinmap_config.h
-Thanos(networkmanager,PinMap::ServoPWM1,0,PinMap::ServoPWM2,1,PinMap::EngineOverride,PinMap::LPTankP,networkmanager.getAddress())
+FuelTankPTap(0, GeneralConfig::KermitAddr, static_cast<uint8_t>(Services::ID::FuelTankPTRemote), static_cast<uint8_t>(Services::ID::FuelTankPTRemote), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
+OxTankPTap(1, GeneralConfig::KermitAddr, static_cast<uint8_t>(Services::ID::OxTankPT), static_cast<uint8_t>(Services::ID::OxTankPT), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
+HPtankPTap(2, GeneralConfig::KermitAddr, static_cast<uint8_t>(Services::ID::HPTankPT), static_cast<uint8_t>(Services::ID::HPTankPT), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
+FuelTankPoller(300, &FuelTankPTap),
+OxTankPoller(300, &OxTankPTap),
+HPTankPTapPoller(50, &HPtankPTap),
+m_FuelPTLocal(networkmanager,0),
+Greg(networkmanager,PinMap::ServoPWM0,0,m_FuelPTLocal,HPTankPTapPoller,OxTankPoller,FuelTankPoller),
+m_FuelPTLocalADC(PinMap::OxPTADCPin)
 {};
 
 
 void System::systemSetup(){
     
     Serial.setRxBufferSize(GeneralConfig::SerialRxSize);
+    Serial.setTxBufferSize(GeneralConfig::SerialRxSize);
     Serial.begin(GeneralConfig::SerialBaud);
    
     //intialize rnp message logger
@@ -51,51 +49,38 @@ void System::systemSetup(){
     //any other setup goes here
     
     Buck.setup();
-    chamberPTapPoller.setup();
-    thrustGaugePoller.setup();
-    HPTankPTapPoller.setup(); //CHECK THIS IS CORRECT
-    Thanos.setup();
+    FuelTankPoller.setup();
+    OxTankPoller.setup();
+    HPTankPTapPoller.setup();
+    Greg.setup();
     canbus.setup();
+    m_FuelPTLocalADC.setAttenuation(ADC_ATTEN_DB_2_5); //0 -> 1250mV input range
+    m_FuelPTLocalADC.setup();
+    m_FuelPTLocal.setup();
+    
     networkmanager.addInterface(&canbus);
 
     networkmanager.setNodeType(NODETYPE::HUB);
     networkmanager.setNoRouteAction(NOROUTE_ACTION::BROADCAST,{1,3});
 
     //Defining these so the methods following are less ugly
-    uint8_t thanosservice = static_cast<uint8_t>(Services::ID::Thanos);
-    uint8_t chamberPTapservice = static_cast<uint8_t>(Services::ID::chamberPTap);
-    uint8_t thrustGaugeservice = static_cast<uint8_t>(Services::ID::thrustGauge);
-    uint8_t HPtankPTapservice = static_cast<uint8_t>(Services::ID::HPtankPTap);
+    uint8_t Gregservice = static_cast<uint8_t>(Services::ID::Greg);
+    uint8_t FuelTankPTapremoteservice = static_cast<uint8_t>(Services::ID::FuelTankPTRemote);
+    uint8_t FuelTankPTaplocalservice = static_cast<uint8_t>(Services::ID::FuelTankPTLocal);
+    uint8_t HPtankPTapservice = static_cast<uint8_t>(Services::ID::HPTankPT);
+    uint8_t OxTankPTService = static_cast<uint8_t>(Services::ID::OxTankPT);
 
-    networkmanager.registerService(thanosservice,Thanos.getThisNetworkCallback());
-    networkmanager.registerService(chamberPTapservice,[this](packetptr_t packetptr){chamberPTap.networkCallback(std::move(packetptr));});
-    networkmanager.registerService(thrustGaugeservice,[this](packetptr_t packetptr){thrustGauge.networkCallback(std::move(packetptr));});
+    networkmanager.registerService(Gregservice,Greg.getThisNetworkCallback());
+    networkmanager.registerService(FuelTankPTaplocalservice,m_FuelPTLocal.getThisNetworkCallback());
+    networkmanager.registerService(FuelTankPTapremoteservice,[this](packetptr_t packetptr){FuelTankPTap.networkCallback(std::move(packetptr));});
     networkmanager.registerService(HPtankPTapservice,[this](packetptr_t packetptr){HPtankPTap.networkCallback(std::move(packetptr));});
+    networkmanager.registerService(OxTankPTService,[this](packetptr_t packetptr){OxTankPTap.networkCallback(std::move(packetptr));});
+    
 };
 
 void System::systemUpdate(){
+    m_FuelPTLocalADC.update();
+    m_FuelPTLocal.update(static_cast<int32_t>(m_FuelPTLocalADC.getADC()));
     Buck.update();
-
-    if(Thanos.getPollingStatus()){  
-        chamberPTapPoller.update();
-        thrustGaugePoller.update();
-        HPTankPTapPoller.update();
-    }
-    
-    if(chamberPTapPoller.newdata)
-    {
-        Thanos.updateChamberP(chamberPTapPoller.getVal());
-    }
-
-    if(thrustGaugePoller.newdata)
-    {
-        Thanos.updateThrust(thrustGaugePoller.getVal());
-    }
-
-    if(HPTankPTapPoller.newdata)
-    {
-        Thanos.updateHPtankP(HPTankPTapPoller.getVal());
-    }
-
-    Thanos.update();
+    Greg.update();
 };

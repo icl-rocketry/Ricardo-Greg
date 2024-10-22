@@ -19,10 +19,11 @@ namespace Services{
      * 
      */
     enum class ID:uint8_t{
-        Thanos = 10,
-        chamberPTap = 12,
-        thrustGauge = 17,
-        HPtankPTap = 20 //CHECK, THIS IS PROBABLY WRONG
+        Greg = 10,
+        FuelTankPTLocal = 14,
+        OxTankPT = 11,
+        FuelTankPTRemote = 13,
+        HPTankPT = 12 //CHECK, THIS IS PROBABLY WRONG
     };
 
 };
