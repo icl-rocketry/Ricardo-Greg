@@ -162,7 +162,7 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
 
         // Operating pressure limits
         float m_P_disconnect = -10; //Below this value, the PT is considered disconnected.
-        float m_P_half_abort = 55; //Above this value, a half abort will be triggered.
+        float m_P_half_abort = 57.5; //Above this value, a half abort will be triggered.
         float m_P_full_abort = 65; //Above this value, a full abort will be triggered.
 
         //        --- HARDWARE LIMITS ---
@@ -172,7 +172,7 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         const uint32_t m_regMaxOpenFirstStart = 600; //Lower maximum angle during the starting period of the controlled state to prevent pressure spikes.sss
         const uint32_t m_regMinOpenAngle = 400;
         const uint32_t m_halfAbortAngle = 400;
-        uint32_t m_regPressuriseAngle = 400;
+        uint32_t m_regPressuriseAngle = 350;
 
         //Variables to log out
         float m_P_angle;
@@ -186,5 +186,8 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
 
         //Variable for updating network sensor time to prevent timeout straight away.
         uint32_t m_lastPollSlow = 0;
+
+        //Half abort timeout
+        uint32_t m_halfAbortTimeout = 500; //After this timeout, the half abort can be exited and normal operation resumed.
 
 };

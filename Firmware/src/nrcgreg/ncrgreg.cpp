@@ -145,11 +145,15 @@ void NRCGreg::checkPressures()
     {
         m_GregStatus.newFlag(GREG_FLAGS::ERROR_HALFABORT, "One or more pressures above the half abort threshold!");
     }
-
     if ((m_DC_count > 2 || m_NORESP_count > 2) && !m_GregStatus.flagSet(GREG_FLAGS::ERROR_HALFABORT))
     {
         m_GregStatus.newFlag(GREG_FLAGS::ERROR_HALFABORT, "Half abort triggered by sensor disconnects or sensors not responding!");
     }
+    // else
+    // {
+    //     m_GregStatus.deleteFlag(GREG_FLAGS::ERROR_HALFABORT, "No half abort conditions are true.");
+    // }
+
 
     if (m_GregStatus.flagSet(GREG_FLAGS::ERROR_CRITICALOVP))
     {
@@ -157,7 +161,7 @@ void NRCGreg::checkPressures()
         {
             return;
         }
-        shutdown(); // Abort in the case of a critical overpressure event.
+        // shutdown(); // Abort in the case of a critical overpressure event.
         return;
     }
 
@@ -170,6 +174,7 @@ void NRCGreg::checkPressures()
         halfabort(); // Abort if any of the half abort conditions are met
         return;
     }
+
 }
 
 void NRCGreg::updateRemoteP()

@@ -18,7 +18,6 @@
 
 #include <librrc/Interface/rocketcomponent.h>
 
-//I'm guessing this is where most things in the overall system are connected together using existing definitions from other header files
 System::System():
 RicCoreSystem(Commands::command_map,Commands::defaultEnabledCommands,Serial),
 Buck(PinMap::BuckPGOOD, PinMap::BuckEN, 1, 1, PinMap::BuckOutputV, 1500, 470),
@@ -26,8 +25,8 @@ canbus(systemstatus,PinMap::TxCan,PinMap::RxCan,3),
 FuelTankPTap(0, GeneralConfig::KermitAddr, static_cast<uint8_t>(Services::ID::FuelTankPTRemote), static_cast<uint8_t>(Services::ID::FuelTankPTRemote), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
 OxTankPTap(1, GeneralConfig::KermitAddr, static_cast<uint8_t>(Services::ID::OxTankPT), static_cast<uint8_t>(Services::ID::OxTankPT), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
 HPtankPTap(2, GeneralConfig::KermitAddr, static_cast<uint8_t>(Services::ID::HPTankPT), static_cast<uint8_t>(Services::ID::HPTankPT), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
-FuelTankPoller(50, &FuelTankPTap),
-OxTankPoller(50, &OxTankPTap),
+FuelTankPoller(300, &FuelTankPTap),
+OxTankPoller(300, &OxTankPTap),
 HPTankPTapPoller(50, &HPtankPTap),
 m_FuelPTLocal(networkmanager,0),
 Greg(networkmanager,PinMap::ServoPWM0,0,m_FuelPTLocal,HPTankPTapPoller,OxTankPoller,FuelTankPoller),

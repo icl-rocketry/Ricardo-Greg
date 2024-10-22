@@ -32,7 +32,7 @@ void Halfabort::initialize()
 
 Types::EREGTypes::State_ptr_t Halfabort::update()
 {
-    return nullptr; //Remain in default state indefinitely. The transition away from halfabort is accessed through the actuator command handler.
+    return nullptr; //The transition away from halfabort is accessed through the actuator command handler.
 };
 
 void Halfabort::exit()
