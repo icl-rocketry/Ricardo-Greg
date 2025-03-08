@@ -643,12 +643,20 @@
       "Power"
     ],
     [
+      "a38feb51-1152-4d4d-8566-95cfa4590db0",
+      "GPIO"
+    ],
+    [
       "edf87c19-b27f-40b7-980c-8232d954ec31",
       "Servo Connectors"
     ],
     [
       "0ed7ffd5-4358-47da-b2ee-add8bc05bcfb",
       "buckC"
+    ],
+    [
+      "3c69cb22-2a2e-48bc-bf3a-8f40ae037554",
+      "gregPart"
     ]
   ],
   "text_variables": {}
