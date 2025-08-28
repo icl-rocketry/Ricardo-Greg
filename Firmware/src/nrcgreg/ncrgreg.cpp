@@ -52,21 +52,22 @@ void NRCGreg::buckManager()
 
 float NRCGreg::getFuelTankP()
 {
-    if (m_GregStatus.flagSet(GREG_FLAGS::ERROR_FUELTANKP_LOCAL))
-    {
-        if (m_P_source == 0)
-        {
-            RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Controller pressure source switched to remote fuel ptap!");
-            m_P_source = 1;
-        }
-        return m_FuelTankPoller.getVal();
-    }
+    // if (m_GregStatus.flagSet(GREG_FLAGS::ERROR_FUELTANKP_LOCAL))
+    // {
+    //     if (m_P_source == 0)
+    //     {
+    //         RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Controller pressure source switched to remote fuel ptap!");
+    //         m_P_source = 1;
+    //     }
+    //     return m_FuelTankPoller.getVal();
+    // }
 
-    if (m_P_source == 1)
-    {
-        RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Controller pressure source returned to local fuel ptap!");
-    }
-    return m_FuelTankAvg.getAvg();
+    // if (m_P_source == 1)
+    // {
+    //     RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Controller pressure source returned to local fuel ptap!");
+    // }
+    // return m_FuelTankAvg.getAvg();
+    return getAvgP();
 }
 
 float NRCGreg::feedforward()
@@ -144,31 +145,31 @@ void NRCGreg::halfabort()
 void NRCGreg::checkPressures()
 {
     // Check if any sensors are below the disconnect threshold
-    // checkDisconnect(m_FuelPT.getPressure(), GREG_FLAGS::ERROR_FTP_LOCAL_DC, "Local fuel tank PT");
+    checkDisconnect(getFuelTankP(), GREG_FLAGS::ERROR_FTP_LOCAL_DC, "Local fuel tank PT");
     checkDisconnect(m_PressTankPoller.getVal(), GREG_FLAGS::ERROR_N2P_REMOTE_DC, "Remote nitrogen PT");
     // checkDisconnect(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_DC, "Remote fuel tank PT");
     // checkDisconnect(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_DC, "Remote ox tank PT");
 
     // Check if any sensors are above the critical overpressure threshold
-    // checkCOverPressure(m_FuelPT.getPressure(), GREG_FLAGS::ERROR_FTP_LOCAL_COVP, "Local fuel tank PT");
+    checkCOverPressure(getFuelTankP(), GREG_FLAGS::ERROR_FTP_LOCAL_COVP, "Local fuel tank PT");
     // checkCOverPressure(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_COVP, "Remote fuel tank PT");
     // checkCOverPressure(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_COVP, "Remote ox tank PT");
 
     // Check if any sensors are above the half abort overpressure threshold
-    // checkHOverPressure(m_FuelPT.getPressure(), GREG_FLAGS::ERROR_FTP_LOCAL_HOVP, "Local fuel tank PT");
+    checkHOverPressure(m_FuelPT.getPressure(), GREG_FLAGS::ERROR_FTP_LOCAL_HOVP, "Local fuel tank PT");
     // checkHOverPressure(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_HOVP, "Remote fuel tank PT");
     // checkHOverPressure(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_HOVP, "Remote ox tank PT");
 
     // Assert the generic flags if any of the specific error flags are set
-    // checkGenericPTFlag(GREG_FLAGS::ERROR_FUELTANKP_LOCAL, "fuel tank local", GREG_FLAGS::ERROR_FTP_LOCAL_COVP, GREG_FLAGS::ERROR_FTP_LOCAL_DC, GREG_FLAGS::ERROR_FTP_LOCAL_HOVP);
+    checkGenericPTFlag(GREG_FLAGS::ERROR_FUELTANKP_LOCAL, "fuel tank local", GREG_FLAGS::ERROR_FTP_LOCAL_COVP, GREG_FLAGS::ERROR_FTP_LOCAL_DC, GREG_FLAGS::ERROR_FTP_LOCAL_HOVP);
     // checkGenericPTFlag(GREG_FLAGS::ERROR_FUELTANKP_REMOTE, "fuel tank remote", GREG_FLAGS::ERROR_FTP_REMOTE_COVP, GREG_FLAGS::ERROR_FTP_REMOTE_DC, GREG_FLAGS::ERROR_FTP_REMOTE_HOVP, GREG_FLAGS::ERROR_FTP_REMOTE_NORESPONSE);
     // checkGenericPTFlag(GREG_FLAGS::ERROR_OXTANKP_REMOTE, "ox tank", GREG_FLAGS::ERROR_OXP_REMOTE_COVP, GREG_FLAGS::ERROR_OXP_REMOTE_DC, GREG_FLAGS::ERROR_OXP_REMOTE_HOVP, GREG_FLAGS::ERROR_OXP_REMOTE_NORESPONSE);
     // checkGenericPTFlag(GREG_FLAGS::ERROR_N2P_REMOTE, "n2 tank", GREG_FLAGS::ERROR_N2P_REMOTE_DC, GREG_FLAGS::ERROR_N2P_REMOTE_NORESPONSE);
 
-    // if (m_GregStatus.flagSetOr(GREG_FLAGS::ERROR_FTP_LOCAL_COVP, GREG_FLAGS::ERROR_FTP_REMOTE_COVP, GREG_FLAGS::ERROR_OXP_REMOTE_COVP) && !m_GregStatus.flagSet(GREG_FLAGS::ERROR_CRITICALOVP))
-    // {
-    //     m_GregStatus.newFlag(GREG_FLAGS::ERROR_CRITICALOVP, "One or more pressures above the critical threshold!");
-    // }
+    if (m_GregStatus.flagSetOr(GREG_FLAGS::ERROR_FTP_LOCAL_COVP, GREG_FLAGS::ERROR_FTP_REMOTE_COVP, GREG_FLAGS::ERROR_OXP_REMOTE_COVP) && !m_GregStatus.flagSet(GREG_FLAGS::ERROR_CRITICALOVP))
+    {
+        m_GregStatus.newFlag(GREG_FLAGS::ERROR_CRITICALOVP, "One or more pressures above the critical threshold!");
+    }
 
     // if (m_GregStatus.flagSetOr(GREG_FLAGS::ERROR_FTP_LOCAL_HOVP, GREG_FLAGS::ERROR_FTP_REMOTE_HOVP, GREG_FLAGS::ERROR_OXP_REMOTE_HOVP) && !m_GregStatus.flagSet(GREG_FLAGS::ERROR_HALFABORT))
     // {
@@ -183,15 +184,15 @@ void NRCGreg::checkPressures()
     // //     m_GregStatus.deleteFlag(GREG_FLAGS::ERROR_HALFABORT, "No half abort conditions are true.");
     // // }
 
-    // if (m_GregStatus.flagSet(GREG_FLAGS::ERROR_CRITICALOVP))
-    // {
-    //     if (m_GregStatus.flagSet(GREG_FLAGS::STATE_DEFAULT))
-    //     {
-    //         return;
-    //     }
-    //     // shutdown(); // Abort in the case of a critical overpressure event.
-    //     return;
-    // }
+    if (m_GregStatus.flagSet(GREG_FLAGS::ERROR_CRITICALOVP))
+    {
+        if (m_GregStatus.flagSet(GREG_FLAGS::STATE_DEFAULT))
+        {
+            return;
+        }
+        shutdown(); // Abort in the case of a critical overpressure event.
+        return;
+    }
 
     // if (m_GregStatus.flagSet(GREG_FLAGS::ERROR_HALFABORT) && m_GregStatus.flagSet(GREG_FLAGS::STATE_CONTROLLED))
     // {

@@ -52,7 +52,7 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
             m_PressTankPoller(NitrogenPPoller),
             m_OxTankPoller(OxTankPPoller),
             m_FuelTankPoller(FuelTankPPoller),
-            m_FuelTankAvg(40)
+            m_FuelTankAvg(50)
             {};
 
         void setup();

@@ -85,7 +85,7 @@ void VRailMonitor::update(float &data)
 
         if ((data < _lowVoltage) && !_lowVoltageTriggered)
         {
-            RicCoreLogging::log<LOG_TARGET>( _name + ": low voltage, at " + std::to_string(data) + "mV");
+            // RicCoreLogging::log<LOG_TARGET>( _name + ": low voltage, at " + std::to_string(data) + "mV");
             _lowVoltageTriggered = true;
         }
         else if ((data > _lowVoltage) && _lowVoltageTriggered)
