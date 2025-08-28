@@ -44,13 +44,9 @@ void NRCGreg::buckManager()
         return;
     }
 
-    if (millis() - m_buckOffTime > 0)
+    if (millis() > m_buckOffTime)
     {
         m_Buck.setEN(false);
-    }
-    else
-    {
-        buckOn();
     }
 }
 
