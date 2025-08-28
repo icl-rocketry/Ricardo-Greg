@@ -24,7 +24,7 @@
 #include <libriccore/fsm/statemachine.h>
 #include <libriccore/riccorelogging.h>
 #include <libriccore/filtering/movingAvg.h>
-
+#include <SiC43x.h>
 #include "gregtypes.h"
     
 // template <RicCoreLoggingConfig::LOGGERS LOGGING_TARGET = RicCoreLoggingConfig::LOGGERS::SYS>
@@ -39,7 +39,8 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
                     NRCRemotePTap& FuelTankPT,
                     SensorPoller& NitrogenPPoller,
                     SensorPoller& OxTankPPoller,
-                    SensorPoller& FuelTankPPoller
+                    SensorPoller& FuelTankPPoller,
+                    SiC43x& BuckConv
                     ):
             NRCRemoteActuatorBase(networkmanager),
             m_networkmanager(networkmanager),      
@@ -47,10 +48,11 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
             m_regServo(m_reg_PWM,networkmanager,"Srvo0",0,0,1800,500,2500,0,1800), //! All angles x10 for better precision.
             m_regAdapter(0,m_regServo,[](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
             m_FuelPT(FuelTankPT),
+            m_Buck(BuckConv),
             m_PressTankPoller(NitrogenPPoller),
             m_OxTankPoller(OxTankPPoller),
             m_FuelTankPoller(FuelTankPPoller),
-            m_FuelTankAvg(20)
+            m_FuelTankAvg(40)
             {};
 
         void setup();
@@ -92,6 +94,10 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         float getHalfAbortP(){return m_P_half_abort;};
         float getFullAbortP(){return m_P_full_abort;};
 
+        void buckManager();
+        void buckOn();
+        void buckOff(uint32_t deadline);
+
     protected:
 
         //Networking
@@ -108,6 +114,7 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         //Sensors
         //Connected locally
         NRCRemotePTap& m_FuelPT;
+        SiC43x& m_Buck;
 
         //Network sensor
         SensorPoller& m_PressTankPoller;
@@ -132,7 +139,7 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         void checkHOverPressure(float sensorvalue, GREG_FLAGS err_flag, std::string err_name);
         template<typename... Flags>
         void checkGenericPTFlag(GREG_FLAGS generic_flag, std::string err_name, Flags... err_flags); //Method asserts generic_flag if any of err_flags input are asserted, and deasserts generic if no err_flags are asserted.
-        
+ 
         //Helperes to aid state transitions
         void shutdown();
         void halfabort();
@@ -141,14 +148,14 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         Types::EREGTypes::StateMachine_t m_GregMachine;
         Types::EREGTypes::SystemStatus_t m_GregStatus;
 
-        Greg::DefaultStateInit m_DefaultStateParams = {m_GregStatus, m_regAdapter, m_regClosedAngle};
+        Greg::DefaultStateInit m_DefaultStateParams = {m_GregStatus, m_regAdapter, m_regClosedAngle, *this};
 
         // ---------- Controller Parameters ----------
         // FF Params
-        float m_FF_min = 55.0;
-        float m_FF_max = 80.0;
+        float m_FF_min = 45.0;
+        float m_FF_max = 55.0;
         float m_FF_0 = 34.0;
-        float m_FF_Alpha = 5570.0;
+        float m_FF_Alpha = 8608.0;
 
         // KP calculation Params
         float m_Kp_min = 2.0;
@@ -168,11 +175,14 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         //        --- HARDWARE LIMITS ---
         //! NOTE - All angles are x10 to allow for 0.1 degree precision in servo movements while still using integers
         const uint32_t m_regClosedAngle = 0;
-        const uint32_t m_regMaxOpenAngle = 850;
-        const uint32_t m_regMaxOpenFirstStart = 600; //Lower maximum angle during the starting period of the controlled state to prevent pressure spikes.sss
-        const uint32_t m_regMinOpenAngle = 400;
-        const uint32_t m_halfAbortAngle = 400;
+        const uint32_t m_regMaxOpenAngle = 550;
+        const uint32_t m_regMaxOpenFirstStart = 500; //Lower maximum angle during the starting period of the controlled state to prevent pressure spikes.sss
+        const uint32_t m_regMinOpenAngle = 350;
+        const uint32_t m_halfAbortAngle = 350;
         uint32_t m_regPressuriseAngle = 350;
+
+        uint32_t m_prevBuckTime = 0;
+        uint32_t m_buckOffTime = 0;
 
         //Variables to log out
         float m_P_angle;

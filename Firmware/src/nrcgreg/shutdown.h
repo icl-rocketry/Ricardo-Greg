@@ -58,4 +58,5 @@ class Shutdown : public Types::EREGTypes::State_t
 
         Types::ServoAdapter_t& m_regAdapter;
         uint32_t m_regClosedAngle;
+        Greg::DefaultStateInit& m_DefaultInitParams;
 };

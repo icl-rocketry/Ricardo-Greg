@@ -20,10 +20,10 @@ namespace Services{
      */
     enum class ID:uint8_t{
         Greg = 10,
-        FuelTankPTLocal = 14,
-        OxTankPT = 11,
-        FuelTankPTRemote = 13,
-        HPTankPT = 12 //CHECK, THIS IS PROBABLY WRONG
+        OxTankPT = 44,
+        FuelTankPTRemote = 45,
+        HPTankPT = 11, //CHECK, THIS IS PROBABLY WRONG
+        FuelTankPTLocal = 14
     };
 
 };

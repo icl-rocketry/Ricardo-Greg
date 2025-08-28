@@ -27,9 +27,9 @@ OxTankPTap(1, GeneralConfig::KermitAddr, static_cast<uint8_t>(Services::ID::OxTa
 HPtankPTap(2, GeneralConfig::KermitAddr, static_cast<uint8_t>(Services::ID::HPTankPT), static_cast<uint8_t>(Services::ID::HPTankPT), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
 FuelTankPoller(300, &FuelTankPTap),
 OxTankPoller(300, &OxTankPTap),
-HPTankPTapPoller(50, &HPtankPTap),
+HPTankPTapPoller(100, &HPtankPTap),
 m_FuelPTLocal(networkmanager,0),
-Greg(networkmanager,PinMap::ServoPWM0,0,m_FuelPTLocal,HPTankPTapPoller,OxTankPoller,FuelTankPoller),
+Greg(networkmanager,PinMap::ServoPWM0,0,m_FuelPTLocal,HPTankPTapPoller,OxTankPoller,FuelTankPoller,Buck),
 m_FuelPTLocalADC(PinMap::OxPTADCPin)
 {};
 
@@ -63,6 +63,9 @@ void System::systemSetup(){
     networkmanager.setNodeType(NODETYPE::HUB);
     networkmanager.setNoRouteAction(NOROUTE_ACTION::BROADCAST,{1,3});
 
+    // pinMode(38, OUTPUT);  
+    // digitalWrite(38,HIGH);
+
     //Defining these so the methods following are less ugly
     uint8_t Gregservice = static_cast<uint8_t>(Services::ID::Greg);
     uint8_t FuelTankPTapremoteservice = static_cast<uint8_t>(Services::ID::FuelTankPTRemote);
@@ -83,4 +86,5 @@ void System::systemUpdate(){
     m_FuelPTLocal.update(static_cast<int32_t>(m_FuelPTLocalADC.getADC()));
     Buck.update();
     Greg.update();
+    // digitalWrite(38,HIGH);
 };

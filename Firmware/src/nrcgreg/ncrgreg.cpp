@@ -12,13 +12,46 @@
 #include "controlled.h"
 #include "debug.h"
 #include "halfabort.h"
+#include <limits>
 
 // Setup for the E-Reg Controller
 void NRCGreg::setup()
 {
     m_regServo.setup();
-    m_regServo.setAngleLims(0, 850);
+    buckOn();
+    m_regServo.setAngleLims(0, 550);
+    buckOff(1000); // turn buck off after 2 seconds
     m_GregMachine.initalize(std::make_unique<Default>(m_DefaultStateParams));
+}
+
+void NRCGreg::buckOn()
+{
+    m_Buck.setEN(true);
+    m_buckOffTime = std::numeric_limits<uint32_t>::max();
+    m_prevBuckTime = millis();
+}
+
+void NRCGreg::buckOff(uint32_t deadline)
+{
+    m_buckOffTime = millis() + deadline;
+}
+
+void NRCGreg::buckManager()
+{
+    if (millis() - m_prevBuckTime > 10000){
+        buckOn();
+        m_buckOffTime = millis() + 1000;
+        return;
+    }
+
+    if (millis() - m_buckOffTime > 0)
+    {
+        m_Buck.setEN(false);
+    }
+    else
+    {
+        buckOn();
+    }
 }
 
 float NRCGreg::getFuelTankP()
@@ -70,7 +103,7 @@ uint32_t lastlog;
 void NRCGreg::update()
 {
     _value = m_GregStatus.getStatus();
-
+    buckManager();
     if (this->_state.flagSet(LIBRRC::COMPONENT_STATUS_FLAGS::DISARMED) && !m_GregStatus.flagSet(GREG_FLAGS::STATE_DEFAULT))
     {
         m_GregMachine.changeState(std::make_unique<Default>(m_DefaultStateParams)); // Return to defualt if the engine is disarmed
@@ -87,7 +120,8 @@ void NRCGreg::update()
                 m_OxTankPoller.update();
             }
             catch (const std::exception &e)
-            {}
+            {
+            }
             m_lastPollSlow = millis();
         }
     }
@@ -114,67 +148,64 @@ void NRCGreg::halfabort()
 void NRCGreg::checkPressures()
 {
     // Check if any sensors are below the disconnect threshold
-    checkDisconnect(m_FuelPT.getPressure(), GREG_FLAGS::ERROR_FTP_LOCAL_DC, "Local fuel tank PT");
+    // checkDisconnect(m_FuelPT.getPressure(), GREG_FLAGS::ERROR_FTP_LOCAL_DC, "Local fuel tank PT");
     checkDisconnect(m_PressTankPoller.getVal(), GREG_FLAGS::ERROR_N2P_REMOTE_DC, "Remote nitrogen PT");
-    checkDisconnect(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_DC, "Remote fuel tank PT");
-    checkDisconnect(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_DC, "Remote ox tank PT");
+    // checkDisconnect(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_DC, "Remote fuel tank PT");
+    // checkDisconnect(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_DC, "Remote ox tank PT");
 
     // Check if any sensors are above the critical overpressure threshold
-    checkCOverPressure(m_FuelPT.getPressure(), GREG_FLAGS::ERROR_FTP_LOCAL_COVP, "Local fuel tank PT");
-    checkCOverPressure(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_COVP, "Remote fuel tank PT");
-    checkCOverPressure(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_COVP, "Remote ox tank PT");
+    // checkCOverPressure(m_FuelPT.getPressure(), GREG_FLAGS::ERROR_FTP_LOCAL_COVP, "Local fuel tank PT");
+    // checkCOverPressure(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_COVP, "Remote fuel tank PT");
+    // checkCOverPressure(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_COVP, "Remote ox tank PT");
 
     // Check if any sensors are above the half abort overpressure threshold
-    checkHOverPressure(m_FuelPT.getPressure(), GREG_FLAGS::ERROR_FTP_LOCAL_HOVP, "Local fuel tank PT");
-    checkHOverPressure(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_HOVP, "Remote fuel tank PT");
-    checkHOverPressure(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_HOVP, "Remote ox tank PT");
+    // checkHOverPressure(m_FuelPT.getPressure(), GREG_FLAGS::ERROR_FTP_LOCAL_HOVP, "Local fuel tank PT");
+    // checkHOverPressure(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_HOVP, "Remote fuel tank PT");
+    // checkHOverPressure(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_HOVP, "Remote ox tank PT");
 
     // Assert the generic flags if any of the specific error flags are set
-    checkGenericPTFlag(GREG_FLAGS::ERROR_FUELTANKP_LOCAL, "fuel tank local", GREG_FLAGS::ERROR_FTP_LOCAL_COVP, GREG_FLAGS::ERROR_FTP_LOCAL_DC, GREG_FLAGS::ERROR_FTP_LOCAL_HOVP);
-    checkGenericPTFlag(GREG_FLAGS::ERROR_FUELTANKP_REMOTE, "fuel tank remote", GREG_FLAGS::ERROR_FTP_REMOTE_COVP, GREG_FLAGS::ERROR_FTP_REMOTE_DC, GREG_FLAGS::ERROR_FTP_REMOTE_HOVP, GREG_FLAGS::ERROR_FTP_REMOTE_NORESPONSE);
-    checkGenericPTFlag(GREG_FLAGS::ERROR_OXTANKP_REMOTE, "ox tank", GREG_FLAGS::ERROR_OXP_REMOTE_COVP, GREG_FLAGS::ERROR_OXP_REMOTE_DC, GREG_FLAGS::ERROR_OXP_REMOTE_HOVP, GREG_FLAGS::ERROR_OXP_REMOTE_NORESPONSE);
-    checkGenericPTFlag(GREG_FLAGS::ERROR_N2P_REMOTE, "n2 tank", GREG_FLAGS::ERROR_N2P_REMOTE_DC, GREG_FLAGS::ERROR_N2P_REMOTE_NORESPONSE);
+    // checkGenericPTFlag(GREG_FLAGS::ERROR_FUELTANKP_LOCAL, "fuel tank local", GREG_FLAGS::ERROR_FTP_LOCAL_COVP, GREG_FLAGS::ERROR_FTP_LOCAL_DC, GREG_FLAGS::ERROR_FTP_LOCAL_HOVP);
+    // checkGenericPTFlag(GREG_FLAGS::ERROR_FUELTANKP_REMOTE, "fuel tank remote", GREG_FLAGS::ERROR_FTP_REMOTE_COVP, GREG_FLAGS::ERROR_FTP_REMOTE_DC, GREG_FLAGS::ERROR_FTP_REMOTE_HOVP, GREG_FLAGS::ERROR_FTP_REMOTE_NORESPONSE);
+    // checkGenericPTFlag(GREG_FLAGS::ERROR_OXTANKP_REMOTE, "ox tank", GREG_FLAGS::ERROR_OXP_REMOTE_COVP, GREG_FLAGS::ERROR_OXP_REMOTE_DC, GREG_FLAGS::ERROR_OXP_REMOTE_HOVP, GREG_FLAGS::ERROR_OXP_REMOTE_NORESPONSE);
+    // checkGenericPTFlag(GREG_FLAGS::ERROR_N2P_REMOTE, "n2 tank", GREG_FLAGS::ERROR_N2P_REMOTE_DC, GREG_FLAGS::ERROR_N2P_REMOTE_NORESPONSE);
 
-
-    if (m_GregStatus.flagSetOr(GREG_FLAGS::ERROR_FTP_LOCAL_COVP, GREG_FLAGS::ERROR_FTP_REMOTE_COVP, GREG_FLAGS::ERROR_OXP_REMOTE_COVP) && !m_GregStatus.flagSet(GREG_FLAGS::ERROR_CRITICALOVP))
-    {
-        m_GregStatus.newFlag(GREG_FLAGS::ERROR_CRITICALOVP, "One or more pressures above the critical threshold!");
-    }
-
-    if (m_GregStatus.flagSetOr(GREG_FLAGS::ERROR_FTP_LOCAL_HOVP, GREG_FLAGS::ERROR_FTP_REMOTE_HOVP, GREG_FLAGS::ERROR_OXP_REMOTE_HOVP) && !m_GregStatus.flagSet(GREG_FLAGS::ERROR_HALFABORT))
-    {
-        m_GregStatus.newFlag(GREG_FLAGS::ERROR_HALFABORT, "One or more pressures above the half abort threshold!");
-    }
-    if ((m_DC_count > 2 || m_NORESP_count > 2) && !m_GregStatus.flagSet(GREG_FLAGS::ERROR_HALFABORT))
-    {
-        m_GregStatus.newFlag(GREG_FLAGS::ERROR_HALFABORT, "Half abort triggered by sensor disconnects or sensors not responding!");
-    }
-    // else
+    // if (m_GregStatus.flagSetOr(GREG_FLAGS::ERROR_FTP_LOCAL_COVP, GREG_FLAGS::ERROR_FTP_REMOTE_COVP, GREG_FLAGS::ERROR_OXP_REMOTE_COVP) && !m_GregStatus.flagSet(GREG_FLAGS::ERROR_CRITICALOVP))
     // {
-    //     m_GregStatus.deleteFlag(GREG_FLAGS::ERROR_HALFABORT, "No half abort conditions are true.");
+    //     m_GregStatus.newFlag(GREG_FLAGS::ERROR_CRITICALOVP, "One or more pressures above the critical threshold!");
     // }
 
+    // if (m_GregStatus.flagSetOr(GREG_FLAGS::ERROR_FTP_LOCAL_HOVP, GREG_FLAGS::ERROR_FTP_REMOTE_HOVP, GREG_FLAGS::ERROR_OXP_REMOTE_HOVP) && !m_GregStatus.flagSet(GREG_FLAGS::ERROR_HALFABORT))
+    // {
+    //     m_GregStatus.newFlag(GREG_FLAGS::ERROR_HALFABORT, "One or more pressures above the half abort threshold!");
+    // }
+    // if ((m_DC_count > 2 || m_NORESP_count > 2) && !m_GregStatus.flagSet(GREG_FLAGS::ERROR_HALFABORT))
+    // {
+    //     m_GregStatus.newFlag(GREG_FLAGS::ERROR_HALFABORT, "Half abort triggered by sensor disconnects or sensors not responding!");
+    // }
+    // // else
+    // // {
+    // //     m_GregStatus.deleteFlag(GREG_FLAGS::ERROR_HALFABORT, "No half abort conditions are true.");
+    // // }
 
-    if (m_GregStatus.flagSet(GREG_FLAGS::ERROR_CRITICALOVP))
-    {
-        if (m_GregStatus.flagSet(GREG_FLAGS::STATE_DEFAULT))
-        {
-            return;
-        }
-        // shutdown(); // Abort in the case of a critical overpressure event.
-        return;
-    }
+    // if (m_GregStatus.flagSet(GREG_FLAGS::ERROR_CRITICALOVP))
+    // {
+    //     if (m_GregStatus.flagSet(GREG_FLAGS::STATE_DEFAULT))
+    //     {
+    //         return;
+    //     }
+    //     // shutdown(); // Abort in the case of a critical overpressure event.
+    //     return;
+    // }
 
-    if (m_GregStatus.flagSet(GREG_FLAGS::ERROR_HALFABORT) && m_GregStatus.flagSet(GREG_FLAGS::STATE_CONTROLLED))
-    {
-        if (m_GregStatus.flagSet(GREG_FLAGS::STATE_DEFAULT))
-        {
-            return;
-        }
-        halfabort(); // Abort if any of the half abort conditions are met
-        return;
-    }
-
+    // if (m_GregStatus.flagSet(GREG_FLAGS::ERROR_HALFABORT) && m_GregStatus.flagSet(GREG_FLAGS::STATE_CONTROLLED))
+    // {
+    //     if (m_GregStatus.flagSet(GREG_FLAGS::STATE_DEFAULT))
+    //     {
+    //         return;
+    //     }
+    //     halfabort(); // Abort if any of the half abort conditions are met
+    //     return;
+    // }
 }
 
 void NRCGreg::updateRemoteP()
@@ -182,8 +213,8 @@ void NRCGreg::updateRemoteP()
     if (m_GregStatus.flagSetOr(GREG_FLAGS::STATE_CONTROLLED, GREG_FLAGS::STATE_PRESSURISE)) // Only poll in the relevant states
     {
         checkNoResponse(m_PressTankPoller, GREG_FLAGS::ERROR_N2P_REMOTE_NORESPONSE, "nitrogen P");
-        checkNoResponse(m_FuelTankPoller, GREG_FLAGS::ERROR_FTP_REMOTE_NORESPONSE, "fuel tank P");
-        checkNoResponse(m_OxTankPoller, GREG_FLAGS::ERROR_OXP_REMOTE_NORESPONSE, "ox tank P");
+        // checkNoResponse(m_FuelTankPoller, GREG_FLAGS::ERROR_FTP_REMOTE_NORESPONSE, "fuel tank P");
+        // checkNoResponse(m_OxTankPoller, GREG_FLAGS::ERROR_OXP_REMOTE_NORESPONSE, "ox tank P");
     }
 }
 
@@ -265,7 +296,8 @@ void NRCGreg::checkGenericPTFlag(GREG_FLAGS generic_flag, std::string err_name, 
     {
         m_GregStatus.newFlag(generic_flag, std::string("One or more errors found with ") + err_name + std::string("!"));
     }
-    else if (!m_GregStatus.flagSetOr(err_flags...) && m_GregStatus.flagSet(generic_flag)){
+    else if (!m_GregStatus.flagSetOr(err_flags...) && m_GregStatus.flagSet(generic_flag))
+    {
         m_GregStatus.deleteFlag(generic_flag, std::string("Component ") + err_name + std::string(" is no longer in error state!"));
     }
 }

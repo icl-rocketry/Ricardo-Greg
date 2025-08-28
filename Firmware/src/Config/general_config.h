@@ -11,8 +11,8 @@ namespace GeneralConfig{
     static constexpr int I2C_FREQUENCY = 400000;
 
     //Addressing
-    static constexpr uint8_t KermitAddr = 12;
-    static constexpr uint8_t StarkAddr = 10;
+    static constexpr uint8_t KermitAddr = 7;
+    static constexpr uint8_t StarkAddr = 8;
     
 };
 

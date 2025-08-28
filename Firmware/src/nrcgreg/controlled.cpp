@@ -27,6 +27,7 @@ void Controlled::initialize()
     Types::EREGTypes::State_t::initialize(); // call parent initialize first!
     m_regAdapter.arm(0);
     m_stateEntry = millis();
+    m_Greg.buckOn();
 };
 
 Types::EREGTypes::State_ptr_t Controlled::update()
@@ -48,4 +49,5 @@ void Controlled::exit()
 {   
     m_regAdapter.disarm();
     Types::EREGTypes::State_t::exit(); // call parent exit last!
+    m_Greg.buckOff(2000);
 };

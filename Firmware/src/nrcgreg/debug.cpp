@@ -17,7 +17,8 @@
 Debug::Debug(Greg::DefaultStateInit& DefaultInitParams):
 State(GREG_FLAGS::STATE_DEBUG,DefaultInitParams.gregstatus),
 m_regAdapter(DefaultInitParams.regAdapter),
-m_regClosedAngle(DefaultInitParams.regClosedAngle)
+m_regClosedAngle(DefaultInitParams.regClosedAngle),
+m_DefaultInitParams(DefaultInitParams)
 {};
 
 void Debug::initialize()
@@ -25,6 +26,7 @@ void Debug::initialize()
     Types::EREGTypes::State_t::initialize(); // call parent initialize first!
 
     m_regAdapter.arm(0); //Arm the servo
+    m_DefaultInitParams.Greg.buckOn();
 };
 
 Types::EREGTypes::State_ptr_t Debug::update()

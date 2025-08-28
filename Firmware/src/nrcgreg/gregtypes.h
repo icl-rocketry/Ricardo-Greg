@@ -5,7 +5,6 @@
 #include <libriccore/systemstatus/systemstatus.h>
 #include <libriccore/fsm/state.h>
 #include <libriccore/fsm/statemachine.h>
-
 /**
  * @brief Templated struct with type aliases inside to provide convient type access. Some of the template paramters might require
  * forward declaration to prevent cylic dependancies.
@@ -65,6 +64,8 @@ namespace Types
     using ServoADPMap_t = std::array<ServoAdapter_t *, 1>;
 };
 
+//fORWARD DEC
+class NRCGreg;
 namespace Greg
 {
     struct DefaultStateInit
@@ -72,6 +73,7 @@ namespace Greg
         Types::EREGTypes::SystemStatus_t &gregstatus;
         Types::ServoAdapter_t &regAdapter;
         const uint32_t regClosedAngle;
+        NRCGreg& Greg;
     };
     
     struct PressuriseParams
