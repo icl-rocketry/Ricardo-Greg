@@ -39,8 +39,7 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
                     NRCRemotePTap& FuelTankPT,
                     SensorPoller& NitrogenPPoller,
                     SensorPoller& OxTankPPoller,
-                    SensorPoller& FuelTankPPoller,
-                    SiC43x& BuckConv
+                    SensorPoller& FuelTankPPoller
                     ):
             NRCRemoteActuatorBase(networkmanager),
             m_networkmanager(networkmanager),      
@@ -48,7 +47,6 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
             m_regServo(m_reg_PWM,networkmanager,"Srvo0",0,0,1800,500,2500,0,1800), //! All angles x10 for better precision.
             m_regAdapter(0,m_regServo,[](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
             m_FuelPT(FuelTankPT),
-            m_Buck(BuckConv),
             m_PressTankPoller(NitrogenPPoller),
             m_OxTankPoller(OxTankPPoller),
             m_FuelTankPoller(FuelTankPPoller),
@@ -94,10 +92,6 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         float getHalfAbortP(){return m_P_half_abort;};
         float getFullAbortP(){return m_P_full_abort;};
 
-        void buckManager();
-        void buckOn();
-        void buckOff(uint32_t deadline);
-
     protected:
 
         //Networking
@@ -114,7 +108,6 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         //Sensors
         //Connected locally
         NRCRemotePTap& m_FuelPT;
-        SiC43x& m_Buck;
 
         //Network sensor
         SensorPoller& m_PressTankPoller;
@@ -148,7 +141,7 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         Types::EREGTypes::StateMachine_t m_GregMachine;
         Types::EREGTypes::SystemStatus_t m_GregStatus;
 
-        Greg::DefaultStateInit m_DefaultStateParams = {m_GregStatus, m_regAdapter, m_regClosedAngle, *this};
+        Greg::DefaultStateInit m_DefaultStateParams = {m_GregStatus, m_regAdapter, m_regClosedAngle};
 
         // ---------- Controller Parameters ----------
         // FF Params

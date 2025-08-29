@@ -29,7 +29,7 @@ FuelTankPoller(300, &FuelTankPTap),
 OxTankPoller(300, &OxTankPTap),
 HPTankPTapPoller(100, &HPtankPTap),
 m_FuelPTLocal(networkmanager,0),
-Greg(networkmanager,PinMap::ServoPWM0,0,m_FuelPTLocal,HPTankPTapPoller,OxTankPoller,FuelTankPoller,Buck),
+Greg(networkmanager,PinMap::ServoPWM0,0,m_FuelPTLocal,HPTankPTapPoller,OxTankPoller,FuelTankPoller),
 m_FuelPTLocalADC(PinMap::OxPTADCPin)
 {};
 

@@ -18,36 +18,8 @@
 void NRCGreg::setup()
 {
     m_regServo.setup();
-    buckOn();
     m_regServo.setAngleLims(0, 550);
-    buckOff(1000); // turn buck off after 2 seconds
     m_GregMachine.initalize(std::make_unique<Default>(m_DefaultStateParams));
-}
-
-void NRCGreg::buckOn()
-{
-    m_Buck.setEN(true);
-    m_buckOffTime = std::numeric_limits<uint32_t>::max();
-    m_prevBuckTime = millis();
-}
-
-void NRCGreg::buckOff(uint32_t deadline)
-{
-    m_buckOffTime = millis() + deadline;
-}
-
-void NRCGreg::buckManager()
-{
-    if (millis() - m_prevBuckTime > 10000){
-        buckOn();
-        m_buckOffTime = millis() + 1000;
-        return;
-    }
-
-    if (millis() > m_buckOffTime)
-    {
-        m_Buck.setEN(false);
-    }
 }
 
 float NRCGreg::getFuelTankP()
@@ -100,7 +72,7 @@ uint32_t lastlog;
 void NRCGreg::update()
 {
     _value = m_GregStatus.getStatus();
-    buckManager();
+
     if (this->_state.flagSet(LIBRRC::COMPONENT_STATUS_FLAGS::DISARMED) && !m_GregStatus.flagSet(GREG_FLAGS::STATE_DEFAULT))
     {
         m_GregMachine.changeState(std::make_unique<Default>(m_DefaultStateParams)); // Return to defualt if the engine is disarmed

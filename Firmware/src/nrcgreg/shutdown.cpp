@@ -29,8 +29,6 @@ void Shutdown::initialize()
     m_regAdapter.execute(m_regClosedAngle); //Drive the E-Reg to its closed position.
     m_regAdapter.disarm(); //No reason to keep actuator armed
 
-    m_DefaultInitParams.Greg.buckOff(2000);
-
 };
 
 Types::EREGTypes::State_ptr_t Shutdown::update()

@@ -28,7 +28,6 @@ void Default::initialize()
     m_regAdapter.arm(0); //Arm the servo
     m_regAdapter.execute(m_regClosedAngle); //Drive the E-Reg to its closed position.
     m_regAdapter.disarm(); //No reason to keep actuator armed
-    m_DefaultInitParams.Greg.buckOff(2000);
 };
 
 Types::EREGTypes::State_ptr_t Default::update()
