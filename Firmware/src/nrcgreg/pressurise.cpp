@@ -23,6 +23,7 @@ void Pressurise::initialize()
 {
     Types::EREGTypes::State_t::initialize(); // call parent initialize first!
     m_DefaultInitParams.regAdapter.arm(0);
+    m_Greg.buckOn();
 };
 
 Types::EREGTypes::State_ptr_t Pressurise::update()
@@ -42,4 +43,5 @@ Types::EREGTypes::State_ptr_t Pressurise::update()
 void Pressurise::exit()
 {
     Types::EREGTypes::State_t::exit(); // call parent exit last!
+    m_Greg.buckOff(1000);
 };

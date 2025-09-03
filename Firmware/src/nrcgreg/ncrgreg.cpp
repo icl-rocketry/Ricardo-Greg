@@ -18,8 +18,36 @@
 void NRCGreg::setup()
 {
     m_regServo.setup();
-    m_regServo.setAngleLims(0, 550);
+    buckOn();
+    m_regServo.setAngleLims(0, m_regMaxOpenAngle);
+    buckOff(1000); // turn buck off after 2 seconds
     m_GregMachine.initalize(std::make_unique<Default>(m_DefaultStateParams));
+}
+
+void NRCGreg::buckOn()
+{
+    m_Buck.setEN(true);
+    m_buckOffTime = std::numeric_limits<uint32_t>::max();
+    m_prevBuckTime = millis();
+}
+
+void NRCGreg::buckOff(uint32_t deadline)
+{
+    m_buckOffTime = millis() + deadline;
+}
+
+void NRCGreg::buckManager()
+{
+    if (millis() - m_prevBuckTime > 10000){
+        buckOn();
+        m_buckOffTime = millis() + 1000;
+        return;
+    }
+
+    if (millis() > m_buckOffTime)
+    {
+        m_Buck.setEN(false);
+    }
 }
 
 float NRCGreg::getFuelTankP()
@@ -28,7 +56,7 @@ float NRCGreg::getFuelTankP()
     // {
     //     if (m_P_source == 0)
     //     {
-    //         RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Controller pressure source switched to remote fuel ptap!");
+    //         // RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Controller pressure source switched to remote fuel ptap!");
     //         m_P_source = 1;
     //     }
     //     return m_FuelTankPoller.getVal();
@@ -36,10 +64,9 @@ float NRCGreg::getFuelTankP()
 
     // if (m_P_source == 1)
     // {
-    //     RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Controller pressure source returned to local fuel ptap!");
+    //     // RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Controller pressure source returned to local fuel ptap!");
     // }
-    // return m_FuelTankAvg.getAvg();
-    return getAvgP();
+    return m_FuelTankAvg.getAvg();
 }
 
 float NRCGreg::feedforward()
@@ -72,7 +99,7 @@ uint32_t lastlog;
 void NRCGreg::update()
 {
     _value = m_GregStatus.getStatus();
-
+    buckManager();
     if (this->_state.flagSet(LIBRRC::COMPONENT_STATUS_FLAGS::DISARMED) && !m_GregStatus.flagSet(GREG_FLAGS::STATE_DEFAULT))
     {
         m_GregMachine.changeState(std::make_unique<Default>(m_DefaultStateParams)); // Return to defualt if the engine is disarmed
@@ -119,24 +146,24 @@ void NRCGreg::checkPressures()
     // Check if any sensors are below the disconnect threshold
     checkDisconnect(getFuelTankP(), GREG_FLAGS::ERROR_FTP_LOCAL_DC, "Local fuel tank PT");
     checkDisconnect(m_PressTankPoller.getVal(), GREG_FLAGS::ERROR_N2P_REMOTE_DC, "Remote nitrogen PT");
-    // checkDisconnect(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_DC, "Remote fuel tank PT");
-    // checkDisconnect(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_DC, "Remote ox tank PT");
+    checkDisconnect(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_DC, "Remote fuel tank PT");
+    checkDisconnect(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_DC, "Remote ox tank PT");
 
     // Check if any sensors are above the critical overpressure threshold
     checkCOverPressure(getFuelTankP(), GREG_FLAGS::ERROR_FTP_LOCAL_COVP, "Local fuel tank PT");
-    // checkCOverPressure(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_COVP, "Remote fuel tank PT");
-    // checkCOverPressure(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_COVP, "Remote ox tank PT");
+    checkCOverPressure(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_COVP, "Remote fuel tank PT");
+    checkCOverPressure(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_COVP, "Remote ox tank PT");
 
     // Check if any sensors are above the half abort overpressure threshold
     checkHOverPressure(m_FuelPT.getPressure(), GREG_FLAGS::ERROR_FTP_LOCAL_HOVP, "Local fuel tank PT");
-    // checkHOverPressure(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_HOVP, "Remote fuel tank PT");
-    // checkHOverPressure(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_HOVP, "Remote ox tank PT");
+    checkHOverPressure(m_FuelTankPoller.getVal(), GREG_FLAGS::ERROR_FTP_REMOTE_HOVP, "Remote fuel tank PT");
+    checkHOverPressure(m_OxTankPoller.getVal(), GREG_FLAGS::ERROR_OXP_REMOTE_HOVP, "Remote ox tank PT");
 
     // Assert the generic flags if any of the specific error flags are set
     checkGenericPTFlag(GREG_FLAGS::ERROR_FUELTANKP_LOCAL, "fuel tank local", GREG_FLAGS::ERROR_FTP_LOCAL_COVP, GREG_FLAGS::ERROR_FTP_LOCAL_DC, GREG_FLAGS::ERROR_FTP_LOCAL_HOVP);
-    // checkGenericPTFlag(GREG_FLAGS::ERROR_FUELTANKP_REMOTE, "fuel tank remote", GREG_FLAGS::ERROR_FTP_REMOTE_COVP, GREG_FLAGS::ERROR_FTP_REMOTE_DC, GREG_FLAGS::ERROR_FTP_REMOTE_HOVP, GREG_FLAGS::ERROR_FTP_REMOTE_NORESPONSE);
-    // checkGenericPTFlag(GREG_FLAGS::ERROR_OXTANKP_REMOTE, "ox tank", GREG_FLAGS::ERROR_OXP_REMOTE_COVP, GREG_FLAGS::ERROR_OXP_REMOTE_DC, GREG_FLAGS::ERROR_OXP_REMOTE_HOVP, GREG_FLAGS::ERROR_OXP_REMOTE_NORESPONSE);
-    // checkGenericPTFlag(GREG_FLAGS::ERROR_N2P_REMOTE, "n2 tank", GREG_FLAGS::ERROR_N2P_REMOTE_DC, GREG_FLAGS::ERROR_N2P_REMOTE_NORESPONSE);
+    checkGenericPTFlag(GREG_FLAGS::ERROR_FUELTANKP_REMOTE, "fuel tank remote", GREG_FLAGS::ERROR_FTP_REMOTE_COVP, GREG_FLAGS::ERROR_FTP_REMOTE_DC, GREG_FLAGS::ERROR_FTP_REMOTE_HOVP, GREG_FLAGS::ERROR_FTP_REMOTE_NORESPONSE);
+    checkGenericPTFlag(GREG_FLAGS::ERROR_OXTANKP_REMOTE, "ox tank", GREG_FLAGS::ERROR_OXP_REMOTE_COVP, GREG_FLAGS::ERROR_OXP_REMOTE_DC, GREG_FLAGS::ERROR_OXP_REMOTE_HOVP, GREG_FLAGS::ERROR_OXP_REMOTE_NORESPONSE);
+    checkGenericPTFlag(GREG_FLAGS::ERROR_N2P_REMOTE, "n2 tank", GREG_FLAGS::ERROR_N2P_REMOTE_DC, GREG_FLAGS::ERROR_N2P_REMOTE_NORESPONSE);
 
     if (m_GregStatus.flagSetOr(GREG_FLAGS::ERROR_FTP_LOCAL_COVP, GREG_FLAGS::ERROR_FTP_REMOTE_COVP, GREG_FLAGS::ERROR_OXP_REMOTE_COVP) && !m_GregStatus.flagSet(GREG_FLAGS::ERROR_CRITICALOVP))
     {
@@ -284,13 +311,13 @@ void NRCGreg::execute_impl(packetptr_t packetptr)
             break;
         }
         m_GregMachine.changeState(std::make_unique<Controlled>(m_DefaultStateParams, *this)); // Can always shut down
-        RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Test Start");
+        // RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Test Start");
         break;
     }
     case 2: // Shutdown command
     {
         m_GregMachine.changeState(std::make_unique<Shutdown>(m_DefaultStateParams)); // Can always shut down
-        RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("ShutDown");
+        // RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("ShutDown");
         break;
     }
     case 3: // Debug command
@@ -301,7 +328,7 @@ void NRCGreg::execute_impl(packetptr_t packetptr)
         }
         // DEBUG COMMAND
         m_GregMachine.changeState(std::make_unique<Debug>(m_DefaultStateParams));
-        RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Entered debug");
+        // RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Entered debug");
         break;
     }
     case 4: // Pressurise command
@@ -312,7 +339,7 @@ void NRCGreg::execute_impl(packetptr_t packetptr)
         }
 
         m_GregMachine.changeState(std::make_unique<Pressurise>(m_DefaultStateParams, *this));
-        RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Pressurisation Start");
+        // RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Pressurisation Start");
         break;
     }
     }

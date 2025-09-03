@@ -64,6 +64,8 @@ namespace Types
     using ServoADPMap_t = std::array<ServoAdapter_t *, 1>;
 };
 
+//fORWARD DEC
+class NRCGreg;
 namespace Greg
 {
     struct DefaultStateInit
@@ -71,6 +73,7 @@ namespace Greg
         Types::EREGTypes::SystemStatus_t &gregstatus;
         Types::ServoAdapter_t &regAdapter;
         const uint32_t regClosedAngle;
+        NRCGreg& Greg;
     };
     
     struct PressuriseParams

@@ -23,13 +23,13 @@ RicCoreSystem(Commands::command_map,Commands::defaultEnabledCommands,Serial),
 Buck(PinMap::BuckPGOOD, PinMap::BuckEN, 1, 1, PinMap::BuckOutputV, 1500, 470),
 canbus(systemstatus,PinMap::TxCan,PinMap::RxCan,3),
 FuelTankPTap(0, GeneralConfig::KermitAddr, static_cast<uint8_t>(Services::ID::FuelTankPTRemote), static_cast<uint8_t>(Services::ID::FuelTankPTRemote), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
-OxTankPTap(1, GeneralConfig::KermitAddr, static_cast<uint8_t>(Services::ID::OxTankPT), static_cast<uint8_t>(Services::ID::OxTankPT), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
+OxTankPTap(1, GeneralConfig::KermitAddr, static_cast<uint8_t>(Services::ID::OxTankPT) + 10, static_cast<uint8_t>(Services::ID::OxTankPT), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
 HPtankPTap(2, GeneralConfig::KermitAddr, static_cast<uint8_t>(Services::ID::HPTankPT), static_cast<uint8_t>(Services::ID::HPTankPT), networkmanager, [](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
 FuelTankPoller(300, &FuelTankPTap),
 OxTankPoller(300, &OxTankPTap),
-HPTankPTapPoller(100, &HPtankPTap),
+HPTankPTapPoller(200, &HPtankPTap),
 m_FuelPTLocal(networkmanager,0),
-Greg(networkmanager,PinMap::ServoPWM0,0,m_FuelPTLocal,HPTankPTapPoller,OxTankPoller,FuelTankPoller),
+Greg(networkmanager,PinMap::ServoPWM0,0,m_FuelPTLocal,HPTankPTapPoller,OxTankPoller,FuelTankPoller,Buck),
 m_FuelPTLocalADC(PinMap::OxPTADCPin)
 {};
 
@@ -47,7 +47,6 @@ void System::systemSetup(){
     statemachine.initalize(std::make_unique<Idle>(systemstatus,commandhandler));
     
     //any other setup goes here
-    
     Buck.setup();
     FuelTankPoller.setup();
     OxTankPoller.setup();
@@ -71,7 +70,7 @@ void System::systemSetup(){
     uint8_t FuelTankPTapremoteservice = static_cast<uint8_t>(Services::ID::FuelTankPTRemote);
     uint8_t FuelTankPTaplocalservice = static_cast<uint8_t>(Services::ID::FuelTankPTLocal);
     uint8_t HPtankPTapservice = static_cast<uint8_t>(Services::ID::HPTankPT);
-    uint8_t OxTankPTService = static_cast<uint8_t>(Services::ID::OxTankPT);
+    uint8_t OxTankPTService = static_cast<uint8_t>(Services::ID::OxTankPT) + 10;
 
     networkmanager.registerService(Gregservice,Greg.getThisNetworkCallback());
     networkmanager.registerService(FuelTankPTaplocalservice,m_FuelPTLocal.getThisNetworkCallback());

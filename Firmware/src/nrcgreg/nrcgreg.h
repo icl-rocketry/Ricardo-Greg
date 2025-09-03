@@ -39,7 +39,8 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
                     NRCRemotePTap& FuelTankPT,
                     SensorPoller& NitrogenPPoller,
                     SensorPoller& OxTankPPoller,
-                    SensorPoller& FuelTankPPoller
+                    SensorPoller& FuelTankPPoller,
+                    SiC43x& Buck
                     ):
             NRCRemoteActuatorBase(networkmanager),
             m_networkmanager(networkmanager),      
@@ -47,10 +48,11 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
             m_regServo(m_reg_PWM,networkmanager,"Srvo0",0,0,1800,500,2500,0,1800), //! All angles x10 for better precision.
             m_regAdapter(0,m_regServo,[](const std::string& msg){RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>(msg);}),
             m_FuelPT(FuelTankPT),
+            m_Buck(Buck),
             m_PressTankPoller(NitrogenPPoller),
             m_OxTankPoller(OxTankPPoller),
             m_FuelTankPoller(FuelTankPPoller),
-            m_FuelTankAvg(50)
+            m_FuelTankAvg(100)
             {};
 
         void setup();
@@ -92,6 +94,10 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         float getHalfAbortP(){return m_P_half_abort;};
         float getFullAbortP(){return m_P_full_abort;};
 
+        void buckManager();
+        void buckOn();
+        void buckOff(uint32_t deadline);
+
     protected:
 
         //Networking
@@ -108,6 +114,7 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         //Sensors
         //Connected locally
         NRCRemotePTap& m_FuelPT;
+              SiC43x& m_Buck;
 
         //Network sensor
         SensorPoller& m_PressTankPoller;
@@ -141,12 +148,12 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         Types::EREGTypes::StateMachine_t m_GregMachine;
         Types::EREGTypes::SystemStatus_t m_GregStatus;
 
-        Greg::DefaultStateInit m_DefaultStateParams = {m_GregStatus, m_regAdapter, m_regClosedAngle};
+        Greg::DefaultStateInit m_DefaultStateParams = {m_GregStatus, m_regAdapter, m_regClosedAngle, *this};
 
         // ---------- Controller Parameters ----------
         // FF Params
-        float m_FF_min = 45.0;
-        float m_FF_max = 55.0;
+        float m_FF_min = 41.0;
+        float m_FF_max = 57.0;
         float m_FF_0 = 34.0;
         float m_FF_Alpha = 8608.0;
 
@@ -157,22 +164,22 @@ class NRCGreg : public NRCRemoteActuatorBase<NRCGreg>
         float m_Kp_Beta = 222.9;
 
         // Controller setpoints
-        float m_P_setpoint = 40; //Running pressure setpoint.
+        float m_P_setpoint = 50; //Running pressure setpoint.
         float m_P_press_extra = 1.5; //Extra pressure to add during pressurisation to make sure setpoint is reached.
 
         // Operating pressure limits
         float m_P_disconnect = -10; //Below this value, the PT is considered disconnected.
         float m_P_half_abort = 57.5; //Above this value, a half abort will be triggered.
-        float m_P_full_abort = 65; //Above this value, a full abort will be triggered.
+        float m_P_full_abort = 63; //Above this value, a full abort will be triggered.
 
         //        --- HARDWARE LIMITS ---
         //! NOTE - All angles are x10 to allow for 0.1 degree precision in servo movements while still using integers
         const uint32_t m_regClosedAngle = 0;
-        const uint32_t m_regMaxOpenAngle = 550;
+        const uint32_t m_regMaxOpenAngle = 580;
         const uint32_t m_regMaxOpenFirstStart = 500; //Lower maximum angle during the starting period of the controlled state to prevent pressure spikes.sss
-        const uint32_t m_regMinOpenAngle = 350;
-        const uint32_t m_halfAbortAngle = 350;
-        uint32_t m_regPressuriseAngle = 350;
+        const uint32_t m_regMinOpenAngle = 410;
+        const uint32_t m_halfAbortAngle = 430;
+        uint32_t m_regPressuriseAngle = 380;
 
         uint32_t m_prevBuckTime = 0;
         uint32_t m_buckOffTime = 0;

@@ -48,7 +48,7 @@ void VRailMonitor::setup(uint16_t maxVoltage, uint16_t lowVoltage,uint16_t minVo
 
     if (error)
     {
-        RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Vrail Monitor Failed to initialize!");
+        // RicCoreLogging::log<RicCoreLoggingConfig::LOGGERS::SYS>("Vrail Monitor Failed to initialize!");
         return;
     }
 
